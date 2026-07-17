@@ -1,0 +1,5 @@
+/bin/
+/nimcache/
+/tests/_work/
+__pycache__/
+*.p.aif
