@@ -172,6 +172,23 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
         result.edit = TextEdit(startOff: a, endOff: a + 1, replacement: " ",
                                label: "replace tab with a space")
         result.hint = "use a space instead of a tab"
+  of "unterminated-string":
+    # A string literal with no closing quote: append `"` at the end of the line's
+    # content. (Nim strings don't span lines, so the close belongs on this line.)
+    let e = lineContentEndOffset(src, starts, d.line)
+    if charAt(src, e - 1) != '"':
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: e, endOff: e, replacement: "\"",
+                             label: "insert closing '\"'")
+      result.hint = "add the closing \""
+  of "unterminated-comment":
+    # A `#[` block comment runs to end-of-input with no `]#`; append the closer
+    # at the end of the file. The verify loop discards it if that doesn't help.
+    let e = src.len
+    result.kind = fkAuto
+    result.edit = TextEdit(startOff: e, endOff: e, replacement: " ]#",
+                           label: "close the block comment with ']#'")
+    result.hint = "add a matching ']#'"
   else:
     discard
 
