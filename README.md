@@ -57,9 +57,17 @@ aowlsuggest fix   <file> [--write] [--dry-run]   apply verified quick-fixes
 aowlsuggest lint  <files...> [--format:json]     batch lint (nonzero exit on error)
 aowlsuggest lsp   <file>                          LSP diagnostics + code actions (JSON)
 aowlsuggest check <file> [--format:json]          raw diagnostics pass-through
+aowlsuggest version                               print the version
 ```
 
-Common flag `--parser:PATH` overrides the aowlparser binary.
+Common flags:
+
+- `--parser:PATH` — override the aowlparser binary (else `$AOWLPARSER`, else the
+  default checkout).
+- `--stdin` (with `fix`/`lsp`/`check`) — read the source from stdin instead of a
+  file, so an editor can check an **unsaved buffer**. `--filename:NAME` sets the
+  path reported in diagnostics and URIs. In this mode `fix` writes the corrected
+  source to stdout (pipe it back into the buffer) and its summary to stderr.
 
 ### `fix`
 
@@ -88,7 +96,10 @@ CI-friendly.
 
 Emits an editor payload: LSP `Diagnostic` objects (0-based ranges,
 `relatedInformation`) plus `CodeAction` quick-fixes carrying a `WorkspaceEdit`,
-in one JSON object `{uri, diagnostics, codeActions}`.
+in one JSON object `{uri, diagnostics, codeActions}`. When a diagnostic has more
+than one plausible repair (e.g. a mismatched bracket can be fixed at the close
+*or* the open), all are emitted as a ranked **"did you mean"** set — the first
+marked `isPreferred`, the alternatives offered for the user to pick.
 
 ## Zero-false-positive discipline
 

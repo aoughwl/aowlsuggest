@@ -18,6 +18,8 @@
 import std/[syncio, cmdline, strutils]
 import contract, textedit, fixes, lsp, jsonout
 
+const aowlsuggestVersion = "0.1.0"
+
 proc afterColon(s: string): string =
   var i = 0
   while i < s.len and s[i] != ':': inc i
@@ -66,13 +68,27 @@ proc readSource(file: string; ok: var bool): string =
     ok = false
     result = ""
 
+proc loadSource(useStdin: bool; file: string; ok: var bool): string =
+  ## The source to work on: stdin (an editor's unsaved buffer) or a file.
+  if useStdin:
+    ok = true
+    try:
+      result = readAll(stdin)
+    except:
+      ok = false
+      result = ""
+  else:
+    result = readSource(file, ok)
+
 # ── fix ──────────────────────────────────────────────────────────────────────
 
-proc cmdFix(parserBin, file: string; doWrite: bool): int =
+proc cmdFix(parserBin, file: string; useStdin: bool; displayName: string;
+            doWrite: bool): int =
   var readOk = false
-  let src = readSource(file, readOk)
+  let src = loadSource(useStdin, file, readOk)
   if not readOk:
-    write stderr, "aowlsuggest: cannot read file: " & file & "\n"
+    write stderr, "aowlsuggest: cannot read " &
+      (if useStdin: "stdin" else: "file: " & file) & "\n"
     return 2
   let outcome = autofix(parserBin, src)
   if not outcome.ok:
@@ -87,7 +103,19 @@ proc cmdFix(parserBin, file: string; doWrite: bool): int =
     if d.severity == sevError: inc remainingErrors
     let plan = planFix(d, outcome.fixed, starts)
     if plan.kind == fkSuggestion:
-      suggestions.add diagLine(file, d)
+      suggestions.add diagLine(displayName, d)
+  if useStdin:
+    # Buffer mode: emit the fixed source on stdout (pipeable back into the
+    # editor), and route the human summary to stderr so it never pollutes it.
+    write stdout, outcome.fixed
+    write stderr, $outcome.applied.len & " fix(es) applied\n"
+    for i in 0 ..< outcome.applied.len:
+      let a = outcome.applied[i]
+      write stderr, "  - " & a.label & " (was " & a.code & " at " &
+        $a.line & ":" & $(a.col + 1) & ")\n"
+    for i in 0 ..< suggestions.len:
+      write stderr, "suggestion: " & suggestions[i] & "\n"
+    return 0
   if doWrite:
     if outcome.changed:
       try:
@@ -106,7 +134,8 @@ proc cmdFix(parserBin, file: string; doWrite: bool): int =
   else:
     # dry-run: show the diff and what would change.
     if outcome.changed:
-      write stdout, unifiedDiff(file, file & " (fixed)", src, outcome.fixed)
+      write stdout, unifiedDiff(displayName, displayName & " (fixed)", src,
+        outcome.fixed)
       write stdout, "\n" & $outcome.applied.len & " fix(es) available " &
         "(re-run with --write to apply)\n"
     else:
@@ -175,37 +204,54 @@ proc cmdLint(parserBin: string; files: seq[string]; asJson: bool): int =
 
 # ── lsp ──────────────────────────────────────────────────────────────────────
 
-proc cmdLsp(parserBin, file: string): int =
+proc gatherDiags(parserBin, file: string; useStdin: bool;
+                 res: var CheckResult; src: var string): bool =
+  ## Load the source (file or stdin) and check it. Returns false on I/O failure
+  ## (message already written to stderr).
   var readOk = false
-  let src = readSource(file, readOk)
+  src = loadSource(useStdin, file, readOk)
   if not readOk:
-    write stderr, "aowlsuggest: cannot read file: " & file & "\n"
-    return 2
-  let res = runCheckerOnFile(parserBin, file)
+    write stderr, "aowlsuggest: cannot read " &
+      (if useStdin: "stdin" else: "file: " & file) & "\n"
+    return false
+  if useStdin:
+    res = checkSource(parserBin, src)
+  else:
+    res = runCheckerOnFile(parserBin, file)
   if not res.ok:
     write stderr, "aowlsuggest: " & res.error & "\n"
+    return false
+  return true
+
+proc cmdLsp(parserBin, file: string; useStdin: bool; displayName: string): int =
+  var res = CheckResult(diags: @[], ok: false, error: "", errorCount: 0,
+                        ranExit: 0)
+  var src = ""
+  if not gatherDiags(parserBin, file, useStdin, res, src):
     return 2
-  write stdout, lspReportJson(file, src, res.diags) & "\n"
+  write stdout, lspReportJson(displayName, src, res.diags) & "\n"
   if res.errorCount > 0: return 1
   return 0
 
 # ── check (pass-through) ─────────────────────────────────────────────────────
 
-proc cmdCheck(parserBin, file: string; asJson: bool): int =
-  let res = runCheckerOnFile(parserBin, file)
-  if not res.ok:
-    write stderr, "aowlsuggest: " & res.error & "\n"
+proc cmdCheck(parserBin, file: string; useStdin: bool; displayName: string;
+              asJson: bool): int =
+  var res = CheckResult(diags: @[], ok: false, error: "", errorCount: 0,
+                        ranExit: 0)
+  var src = ""
+  if not gatherDiags(parserBin, file, useStdin, res, src):
     return 2
   if asJson:
     var s = "["
     for i in 0 ..< res.diags.len:
       if i > 0: s.add ","
-      s.add diagRawJson(file, res.diags[i])
+      s.add diagRawJson(displayName, res.diags[i])
     s.add "]"
     write stdout, s & "\n"
   else:
     for i in 0 ..< res.diags.len:
-      write stdout, diagLine(file, res.diags[i]) & "\n"
+      write stdout, diagLine(displayName, res.diags[i]) & "\n"
   if res.errorCount > 0: return 1
   return 0
 
@@ -218,17 +264,22 @@ proc usage(): int =
   write stderr, "  aowlsuggest lint  <files...> [--format:json]     batch lint (nonzero exit on error)\n"
   write stderr, "  aowlsuggest lsp   <file>                          LSP diagnostics + code actions (JSON)\n"
   write stderr, "  aowlsuggest check <file> [--format:json]          raw diagnostics pass-through\n"
+  write stderr, "  aowlsuggest version                              print the version\n"
   write stderr, "flags:\n"
   write stderr, "  --parser:PATH   aowlparser binary (else $AOWLPARSER, else the default checkout)\n"
   write stderr, "  --write         (fix) write changes back to the file\n"
   write stderr, "  --dry-run       (fix) show a unified diff without writing (default)\n"
   write stderr, "  --format:json   (lint/check) machine-readable output\n"
+  write stderr, "  --stdin         (fix/lsp/check) read source from stdin (an unsaved buffer)\n"
+  write stderr, "  --filename:NAME (with --stdin) the path to report in diagnostics/URIs\n"
   return 1
 
 proc main(): int =
   var parserBin = defaultParserBin()
   var doWrite = false
   var asJson = false
+  var useStdin = false
+  var filename = "stdin"
   var positional: seq[string] = @[]
   let cli = commandLineParams()
   for ci in 0 ..< cli.len:
@@ -237,10 +288,17 @@ proc main(): int =
       doWrite = true
     elif a == "--dry-run":
       doWrite = false
+    elif a == "--stdin":
+      useStdin = true
     elif a == "--help" or a == "-h":
       return usage()
+    elif a == "--version":
+      write stdout, "aowlsuggest " & aowlsuggestVersion & "\n"
+      return 0
     elif startsWith(a, "--parser:"):
       parserBin = afterColon(a)
+    elif startsWith(a, "--filename:"):
+      filename = afterColon(a)
     elif startsWith(a, "--format:"):
       if afterColon(a) == "json": asJson = true
     else:
@@ -248,21 +306,29 @@ proc main(): int =
   if positional.len < 1:
     return usage()
   let action = positional[0]
+  # `displayName` is what appears in diagnostics/URIs: the reported filename for
+  # stdin, else the file path itself.
+  var fileArg = ""
+  if positional.len >= 2: fileArg = positional[1]
+  let displayName = if useStdin: filename else: fileArg
   case action
   of "fix":
-    if positional.len < 2: return usage()
-    return cmdFix(parserBin, positional[1], doWrite)
+    if not useStdin and positional.len < 2: return usage()
+    return cmdFix(parserBin, fileArg, useStdin, displayName, doWrite)
   of "lint":
     if positional.len < 2: return usage()
     var files: seq[string] = @[]
     for i in 1 ..< positional.len: files.add positional[i]
     return cmdLint(parserBin, files, asJson)
   of "lsp":
-    if positional.len < 2: return usage()
-    return cmdLsp(parserBin, positional[1])
+    if not useStdin and positional.len < 2: return usage()
+    return cmdLsp(parserBin, fileArg, useStdin, displayName)
   of "check":
-    if positional.len < 2: return usage()
-    return cmdCheck(parserBin, positional[1], asJson)
+    if not useStdin and positional.len < 2: return usage()
+    return cmdCheck(parserBin, fileArg, useStdin, displayName, asJson)
+  of "version":
+    write stdout, "aowlsuggest " & aowlsuggestVersion & "\n"
+    return 0
   else:
     write stderr, "aowlsuggest: unknown command: " & action & "\n"
     return usage()

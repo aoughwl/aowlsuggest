@@ -91,5 +91,29 @@ grep -q '"codeActions"' <<<"$lout" || { echo "FAIL: lsp missing codeActions"; fa
 grep -q '"newText":"=="' <<<"$lout" || { echo "FAIL: lsp code action missing newText"; fail=1; }
 grep -q '"line":0' <<<"$lout" || { echo "FAIL: lsp range not 0-based"; fail=1; }
 
+# --- "did you mean" ranking: a mismatched bracket offers TWO ranked actions -
+printf 'let a = (1 + 2]\n' > "$WORK/r.nim"
+rout="$("$AS" lsp "$WORK/r.nim" 2>&1)"
+grep -q '"isPreferred":true' <<<"$rout" || { echo "FAIL: ranking: no preferred action"; fail=1; }
+grep -q '"isPreferred":false' <<<"$rout" || { echo "FAIL: ranking: no alternative action"; fail=1; }
+
+# --- stdin (unsaved buffer): check / fix / lsp -----------------------------
+sout="$(printf 'if x = 5:\n  discard\n' | "$AS" check --stdin --filename:buf.nim 2>&1)"
+grep -q 'buf.nim:1:6: error\[assignment-in-condition\]' <<<"$sout" || {
+  echo "FAIL: stdin check did not use the reported filename / diagnostic"; fail=1; }
+# fix --stdin writes the FIXED source to stdout (summary goes to stderr)
+fsout="$(printf 'if x = 5:\n  discard\n' | "$AS" fix --stdin 2>/dev/null)"
+[ "$fsout" = "$(printf 'if x == 5:\n  discard\n')" ] || {
+  echo "FAIL: fix --stdin did not emit fixed source on stdout: $fsout"; fail=1; }
+# a valid buffer is echoed back unchanged
+vsout="$(printf 'let x = 1\n' | "$AS" fix --stdin 2>/dev/null)"
+[ "$vsout" = "$(printf 'let x = 1\n')" ] || {
+  echo "FAIL: fix --stdin altered a valid buffer"; fail=1; }
+lsout="$(printf 'if x = 5:\n  discard\n' | "$AS" lsp --stdin --filename:buf.nim 2>&1)"
+grep -q 'buf.nim' <<<"$lsout" || { echo "FAIL: stdin lsp did not use the filename in the URI"; fail=1; }
+
+# --- version ---------------------------------------------------------------
+"$AS" version 2>&1 | grep -q 'aowlsuggest ' || { echo "FAIL: version output"; fail=1; }
+
 if [ "$fail" -eq 0 ]; then echo "fix: all checks passed"; else echo "fix: FAILURES above"; fi
 exit "$fail"

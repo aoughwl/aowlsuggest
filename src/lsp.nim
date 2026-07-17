@@ -62,28 +62,30 @@ proc diagnosticsJson*(file, src: string; diags: seq[Diagnostic]): string =
   result.add "]}"
 
 proc codeActionsJson*(file, src: string; diags: seq[Diagnostic]): string =
-  ## An array of LSP `CodeAction` quick-fixes — one per diagnostic that has a
-  ## verifiable auto edit. Each is the preferred action for its diagnostic (only
-  ## one candidate is generated per diagnostic today; the "did you mean" ranker
-  ## in `rankedActionsJson` handles the multi-candidate case).
+  ## An array of LSP `CodeAction` quick-fixes. Each diagnostic contributes ALL
+  ## its plausible auto edits (the "did you mean" set), ranked — the first is
+  ## marked `isPreferred` (what `fix` would apply), the alternatives are equally
+  ## valid choices an editor can offer.
   let uri = toFileUri(file)
   let starts = lineStarts(src)
   result = "["
   var first = true
   for i in 0 ..< diags.len:
     let d = diags[i]
-    let plan = planFix(d, src, starts)
-    if plan.kind != fkAuto: continue
-    let (sl, sc) = offsetToLineCol(starts, plan.edit.startOff)
-    let (el, ec) = offsetToLineCol(starts, plan.edit.endOff)
-    if not first: result.add ","
-    first = false
-    result.add "{\"title\":" & jStr(plan.edit.label) &
-      ",\"kind\":\"quickfix\",\"isPreferred\":true" &
-      ",\"diagnostics\":[" & diagJson(d, uri) & "]" &
-      ",\"edit\":{\"changes\":{" & jStr(uri) & ":[{\"range\":" &
-        rangeJson(sl, sc, el, ec) &
-        ",\"newText\":" & jStr(plan.edit.replacement) & "}]}}}"
+    let cands = candidateFixes(d, src, starts)
+    for ci in 0 ..< cands.len:
+      let plan = cands[ci]
+      let (sl, sc) = offsetToLineCol(starts, plan.edit.startOff)
+      let (el, ec) = offsetToLineCol(starts, plan.edit.endOff)
+      if not first: result.add ","
+      first = false
+      result.add "{\"title\":" & jStr(plan.edit.label) &
+        ",\"kind\":\"quickfix\",\"isPreferred\":" &
+        (if ci == 0: "true" else: "false") &
+        ",\"diagnostics\":[" & diagJson(d, uri) & "]" &
+        ",\"edit\":{\"changes\":{" & jStr(uri) & ":[{\"range\":" &
+          rangeJson(sl, sc, el, ec) &
+          ",\"newText\":" & jStr(plan.edit.replacement) & "}]}}}"
   result.add "]"
 
 proc lspReportJson*(file, src: string; diags: seq[Diagnostic]): string =

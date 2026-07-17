@@ -60,10 +60,17 @@ proc firstQuotedChar(s: string; startAt: int): (char, int) =
 proc charAt(src: string; off: int): char =
   if off >= 0 and off < src.len: src[off] else: '\0'
 
-proc planFix*(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
-  ## Decide how (if at all) diagnostic `d` can be repaired in `src`. Only the
-  ## four codes below yield an `fkAuto` edit; each carries a guard so a
-  ## surprising span degrades to "no auto-fix" rather than a bad splice.
+proc openerFor(closeCh: char): char =
+  case closeCh
+  of ')': '('
+  of ']': '['
+  of '}': '{'
+  else: '\0'
+
+proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
+  ## The single PREFERRED auto edit for `d`, or `fkNone`. This is the edit the
+  ## `fix` command applies (after verification). Alternatives (for "did you mean"
+  ## ranking) live in `candidateFixes`.
   result = PlannedFix(kind: fkNone, edit: TextEdit(startOff: 0, endOff: 0,
                       replacement: "", label: ""), hint: d.fix)
   case d.code
@@ -114,14 +121,41 @@ proc planFix*(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
         result.edit = TextEdit(startOff: e, endOff: e, replacement: " =",
                                label: "insert '='")
         result.hint = "insert '=' after the signature"
-    if result.kind != fkAuto and d.fix.len > 0:
-      result.kind = fkSuggestion
   else:
-    if d.fix.len > 0:
-      result.kind = fkSuggestion
-  # A diagnostic that carries a fix hint but got no auto edit is a suggestion.
+    discard
+
+proc planFix*(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
+  ## The preferred repair for `d`: its auto edit if one exists, else a suggestion
+  ## (when aowlparser attached a hint), else nothing.
+  result = autoEdit(d, src, starts)
   if result.kind == fkNone and d.fix.len > 0:
     result.kind = fkSuggestion
+    result.hint = d.fix
+
+proc candidateFixes*(d: Diagnostic; src: string; starts: seq[int]): seq[PlannedFix] =
+  ## All plausible auto edits for `d`, most-preferred first — the "did you mean"
+  ## set an editor offers. The first is what `fix` applies; the rest are equally
+  ## valid alternatives a human might prefer (e.g. fixing the OPENING bracket
+  ## instead of the closing one). Only auto edits appear here; suggestions do not.
+  result = @[]
+  let primary = autoEdit(d, src, starts)
+  if primary.kind == fkAuto:
+    result.add primary
+  # A mismatched bracket can also be repaired at the OPENER: change the '(' the
+  # message names to the opener that matches the actual close. `related` carries
+  # the opener's position.
+  if d.code == "mismatched-bracket" and d.hasRelated:
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    let cur = charAt(src, a)
+    let oa = lineColToOffset(src, starts, d.relLine, d.relCol)
+    let openCur = charAt(src, oa)
+    let wantOpen = openerFor(cur)
+    if (openCur == '(' or openCur == '[' or openCur == '{') and
+       wantOpen != '\0' and wantOpen != openCur:
+      result.add PlannedFix(kind: fkAuto,
+        edit: TextEdit(startOff: oa, endOff: oa + 1, replacement: $wantOpen,
+          label: "change the opening '" & $openCur & "' to '" & $wantOpen & "'"),
+        hint: "or change the opener to '" & $wantOpen & "'")
 
 proc errorCodes(diags: seq[Diagnostic]): seq[string] =
   result = @[]
