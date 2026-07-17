@@ -10,7 +10,7 @@
 import std/[syncio, json]
 import contract, lsp
 
-const serverVersion = "0.2.0"
+const serverVersion = "0.3.0"
 
 # ── document store ───────────────────────────────────────────────────────────
 
@@ -20,6 +20,7 @@ type
     text: string
   Server = object
     parserBin: string
+    checkFlags: string   ## opt-in lint policies threaded from the CLI
     docs: seq[Doc]
 
 proc setDoc(s: var Server; uri, text: string) =
@@ -172,7 +173,7 @@ proc parseCodeAction(root: JsonNode; uri: var string; loLine, hiLine: var int) =
 # ── behaviour ────────────────────────────────────────────────────────────────
 
 proc publishDiagnostics(s: Server; uri, text: string) =
-  let res = checkSource(s.parserBin, text)
+  let res = checkSource(s.parserBin, text, s.checkFlags)
   # On a checker failure, publish an empty list rather than stale diagnostics.
   let arr =
     if res.ok: diagnosticsArrayForUri(uri, text, res.diags)
@@ -239,7 +240,7 @@ proc handle(s: var Server; body: string; shouldExit: var bool) =
     var text = ""
     var actions = "[]"
     if uri.len > 0 and getDoc(s, uri, text):
-      let res = checkSource(s.parserBin, text)
+      let res = checkSource(s.parserBin, text, s.checkFlags)
       if res.ok:
         actions = codeActionsForUri(uri, text, res.diags, true, loLine, hiLine)
     if hasId:
@@ -250,9 +251,11 @@ proc handle(s: var Server; body: string; shouldExit: var bool) =
     if hasId:
       send("{\"jsonrpc\":\"2.0\",\"id\":" & idJson & ",\"result\":null}")
 
-proc runLspServer*(parserBin: string): int =
+proc runLspServer*(parserBin: string; checkFlags = ""): int =
   ## Blocking stdio LSP loop. Returns the process exit code (0 on clean `exit`).
-  var s = Server(parserBin: parserBin, docs: @[])
+  ## `checkFlags` carries any opt-in lint policies (`--style` / `--pedantic`) so
+  ## an editor session lints exactly as the CLI would.
+  var s = Server(parserBin: parserBin, checkFlags: checkFlags, docs: @[])
   var body = ""
   var shouldExit = false
   while true:

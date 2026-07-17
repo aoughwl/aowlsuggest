@@ -209,6 +209,52 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
     result.edit = TextEdit(startOff: e, endOff: e, replacement: " ]#",
                            label: "close the block comment with ']#'")
     result.hint = "add a matching ']#'"
+  of "trailing-whitespace":
+    # aowlparser flags the line (span at the newline) when `--trailing-whitespace`
+    # is on. Delete the maximal run of spaces / tabs at the end of the line's
+    # content — never the `\r` (that is the `line-ending` concern) or the `\n`.
+    let e = lineEndOffset(src, starts, d.line)
+    var s = e
+    while s > 0 and (src[s-1] == ' ' or src[s-1] == '\t'):
+      dec s
+    if s < e:
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: s, endOff: e, replacement: "",
+                             label: "remove trailing whitespace")
+      result.hint = "delete the trailing whitespace"
+  of "missing-final-newline":
+    # The source does not end with a newline (`--final-newline:require`). Append
+    # one. Guard: only when the file is non-empty and truly lacks it.
+    if src.len > 0 and src[src.len - 1] != '\n':
+      let e = src.len
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: e, endOff: e, replacement: "\n",
+                             label: "add a final newline")
+      result.hint = "end the file with a newline"
+  of "line-ending":
+    # An EOL that violates the requested convention (`--newline:lf|crlf`). The
+    # message names the desired end: "expected LF" → drop the `\r`; "expected
+    # CRLF" → insert one. Either way the edit is at the line's terminating '\n'.
+    let nl = lineEndOffset(src, starts, d.line)   # offset of the '\n' (or EOF)
+    if find(d.message, "expected LF") >= 0:
+      if nl > 0 and charAt(src, nl - 1) == '\r':
+        result.kind = fkAuto
+        result.edit = TextEdit(startOff: nl - 1, endOff: nl, replacement: "",
+                               label: "convert CRLF to LF")
+        result.hint = "use a plain LF line ending"
+    elif find(d.message, "expected CRLF") >= 0:
+      if nl <= src.len and charAt(src, nl) == '\n' and charAt(src, nl - 1) != '\r':
+        result.kind = fkAuto
+        result.edit = TextEdit(startOff: nl, endOff: nl, replacement: "\r",
+                               label: "convert LF to CRLF")
+        result.hint = "use a CRLF line ending"
+  of "bom-rejected":
+    # A leading UTF-8 BOM (`EF BB BF`) under `--bom:reject`. Strip the 3 bytes.
+    if src.len >= 3 and src[0] == '\xEF' and src[1] == '\xBB' and src[2] == '\xBF':
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: 0, endOff: 3, replacement: "",
+                             label: "strip the leading UTF-8 BOM")
+      result.hint = "remove the byte-order mark"
   else:
     discard
 
@@ -251,31 +297,63 @@ proc errorCodes(diags: seq[Diagnostic]): seq[string] =
     if diags[i].severity == sevError:
       result.add diags[i].code
 
+proc allCodes(diags: seq[Diagnostic]): seq[string] =
+  result = @[]
+  for i in 0 ..< diags.len:
+    result.add diags[i].code
+
 proc containsStr(xs: seq[string]; s: string): bool =
   for i in 0 ..< xs.len:
     if xs[i] == s: return true
   return false
 
 proc improves(before, after: CheckResult): bool =
-  ## An edit is accepted only if it strictly reduces the error count AND every
-  ## error code remaining afterwards was already present before — so a fix can
-  ## never trade one problem for a different (possibly worse) one.
+  ## Whether a candidate edit is a strict improvement — the zero-FP gate. An edit
+  ## is kept only if the checker still ran (`after.ok`), it introduces no new
+  ## ERROR code, and one of two branches holds:
+  ##
+  ## * **Error branch** — the error count strictly drops. This is the original
+  ##   rule for syntax repairs; a fix may still legitimately unmask a *warning*.
+  ## * **Warning branch** — the error count is unchanged, the *total* diagnostic
+  ##   count strictly drops, and no new code of ANY severity appears. This lets a
+  ##   verified STYLE fix (trailing whitespace, missing final newline, CRLF, BOM)
+  ##   be accepted, while still forbidding it from trading one warning for another
+  ##   or perturbing the parse (which would change some code).
+  ##
+  ## Either way a fix can never trade one problem for a different, possibly worse,
+  ## one — the checker itself is the oracle.
   if not after.ok: return false
-  if after.errorCount >= before.errorCount: return false
-  let oldCodes = errorCodes(before.diags)
-  let newCodes = errorCodes(after.diags)
-  for i in 0 ..< newCodes.len:
-    if not containsStr(oldCodes, newCodes[i]):
+  let oldErr = errorCodes(before.diags)
+  let newErr = errorCodes(after.diags)
+  for i in 0 ..< newErr.len:
+    if not containsStr(oldErr, newErr[i]):
       return false
-  return true
+  # Error branch: strictly fewer errors (warnings may shift — original rule).
+  if after.errorCount < before.errorCount:
+    return true
+  # Warning branch: errors unchanged, strictly fewer diagnostics overall, and no
+  # new code of any severity (so nothing was unmasked or swapped).
+  if after.errorCount == before.errorCount and
+     after.diags.len < before.diags.len:
+    let oldAll = allCodes(before.diags)
+    let newAll = allCodes(after.diags)
+    for i in 0 ..< newAll.len:
+      if not containsStr(oldAll, newAll[i]):
+        return false
+    return true
+  return false
 
 proc diagKey(d: Diagnostic): string =
   d.code & ":" & $d.line & ":" & $d.col
 
-proc autofix*(parserBin, src: string): FixOutcome =
+proc autofix*(parserBin, src: string; extra = ""): FixOutcome =
   ## Iteratively apply verified fixes until none remain. Each accepted edit
-  ## strictly lowers the error count, so the loop is bounded by the initial
-  ## number of errors; a hard cap guards against any pathological case.
+  ## strictly lowers the error count (or, for a style fix, the total diagnostic
+  ## count), so the loop is bounded by the initial number of diagnostics; a hard
+  ## cap guards against any pathological case. `extra` carries the opt-in lint
+  ## flags (see `contract.checkSource`): every check here — the survey AND the
+  ## per-candidate verify — runs under the SAME policy, so a style fix is judged
+  ## against the same rules that surfaced it.
   result = FixOutcome(original: src, fixed: src, applied: @[], remaining: @[],
                       changed: false, ok: true, error: "")
   var current = src
@@ -284,7 +362,7 @@ proc autofix*(parserBin, src: string): FixOutcome =
   let maxIter = 10000
   while iterations < maxIter:
     inc iterations
-    let res = checkSource(parserBin, current)
+    let res = checkSource(parserBin, current, extra)
     if not res.ok:
       result.ok = false
       result.error = res.error

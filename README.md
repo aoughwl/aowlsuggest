@@ -72,6 +72,8 @@ Common flags:
 - `--stats` — (lint) also print a per-code count summary.
 - `--color` — colorize the human-readable output.
 - `--no-suppress` — ignore inline `# aowlsuggest:ignore` markers.
+- `--pedantic` / `--style:CAT` / `--indent-width:N` — opt in to aowlparser's
+  stylistic lint policies (see **Style / lint policies**); off by default.
 - `--stdin` (with `fix`/`lsp`/`check`) — read the source from stdin instead of a
   file, so an editor can check an **unsaved buffer**. `--filename:NAME` sets the
   path reported in diagnostics and URIs. In this mode `fix` writes the corrected
@@ -92,10 +94,48 @@ guarded, and **verified** before it is kept:
 | `unmatched-close` | delete a surplus close bracket |
 | `unclosed-bracket` | add the matching close (single-line brackets) |
 | `tabs-not-allowed` | replace a **mid-line** tab with a space |
+| `trailing-whitespace` | delete the spaces/tabs before the newline *(style)* |
+| `missing-final-newline` | append a terminating newline *(style)* |
+| `line-ending` | rewrite the EOL to the requested LF/CRLF *(style)* |
+| `bom-rejected` | strip a leading UTF-8 byte-order mark *(style)* |
 
 Everything else with a repair hint is surfaced as a **suggestion** (needs human
 judgement), never auto-applied. `--dry-run` (the default) prints a unified diff;
 `--write` applies it. Directories and cascades are handled in one pass.
+
+The four *(style)* fixes only fire when the matching policy is opted in (see
+**Style / lint policies** below); each touches nothing but insignificant
+whitespace/BOM, so it can never change what the program means.
+
+### Style / lint policies
+
+aowlparser owns diagnostic *emission*, and several of its stylistic checks are
+**off by default** — which is exactly what keeps the zero-FP corpus clean.
+aowlsuggest turns them on **on request** and makes each one actionable with a
+verified fix. Nothing changes in the default pipeline; these are strictly
+opt-in.
+
+```sh
+aowlsuggest lint --pedantic          <paths...>   # trailing-ws + final-newline + bom
+aowlsuggest fix  --style:lf  --write <paths...>   # normalize CRLF → LF
+aowlsuggest fix  --pedantic  --write <paths...>   # apply the whole safe style set
+```
+
+| flag | aowlparser policy | code surfaced |
+|------|-------------------|---------------|
+| `--style:trailing-whitespace` | `--trailing-whitespace:warn` | `trailing-whitespace` |
+| `--style:final-newline` | `--final-newline:require` | `missing-final-newline` |
+| `--style:lf` / `--style:crlf` | `--newline:lf` / `:crlf` | `line-ending` |
+| `--style:bom` | `--bom:reject` | `bom-rejected` |
+| `--style:indent-consistency` | `--indent-consistency` | `indent-consistency` *(advisory, no fix)* |
+| `--indent-width:N` | `--indent-width:N` | `indent-width` *(advisory, no fix)* |
+| `--pedantic` | trailing-whitespace + final-newline + bom | the three above |
+
+`--style:` is repeatable. The flags flow through the same contract seam and the
+same verify loop as every other fix — a style edit is kept only if re-checking
+under the *same* policy shows strictly fewer diagnostics and introduces no new
+code. The `lsp-server` honours these flags too, so an editor session lints
+exactly as the CLI would.
 
 ### `lint`
 
@@ -157,10 +197,16 @@ This is proven two ways:
   count, and every file it changes strictly *reduces* it — the monotonicity
   invariant the verify loop enforces. (`tests/stress.sh`)
 
+- **Style fixes preserve the program.** When the opt-in style policies are on,
+  `fix --pedantic` over the 599 valid files changes **only** insignificant bytes
+  (whitespace / BOM) — proven by stripping whitespace+BOM from both sides and
+  comparing — never breaks the parse, and is idempotent. A style fix can't change
+  what the code means. (`tests/style.sh`)
+
 Run it yourself:
 
 ```sh
-bash tests/run.sh        # fix + feature tests, 599-file zero-FP proof, 2890-file realism gate
+bash tests/run.sh        # fix + feature + style tests, 599-file zero-FP proof, 2890-file realism gate
 ```
 
 The expanded auto-fixes (`unclosed-bracket`, `unmatched-close`, …) are more

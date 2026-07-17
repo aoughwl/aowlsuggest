@@ -23,7 +23,7 @@ import std/[syncio, cmdline, strutils]
 import contract, textedit, fixes, lsp, jsonout, walk, sarif, explain, suppress
 import lspserver
 
-const aowlsuggestVersion = "0.2.0"
+const aowlsuggestVersion = "0.3.0"
 
 type
   Options = object
@@ -36,6 +36,7 @@ type
     useStdin: bool
     filename: string
     color: bool
+    checkFlags: string  ## opt-in aowlparser lint flags (see `--style` / `--pedantic`)
 
 proc afterColon(s: string): string =
   var i = 0
@@ -44,6 +45,42 @@ proc afterColon(s: string): string =
   result = ""
   while i < s.len:
     result.add s[i]; inc i
+
+# ── style / lint policy ──────────────────────────────────────────────────────
+#
+# aowlparser owns diagnostic EMISSION; several of its stylistic checks are gated
+# behind flags that are OFF by default (which is exactly why the zero-FP corpus
+# stays clean). aowlsuggest turns them on ON REQUEST and makes the resulting
+# diagnostics actionable. The mapping below is the whole whitelist — the only
+# text that ever reaches aowlparser's command line — so nothing user-controlled
+# is interpolated into the shell.
+
+proc styleFlag(cat: string; ok: var bool): string =
+  ## Map a `--style:` category to the aowlparser flag that enables it.
+  ok = true
+  case cat
+  of "trailing-whitespace", "trailing": "--trailing-whitespace:warn"
+  of "final-newline", "eof-newline": "--final-newline:require"
+  of "lf", "newline-lf": "--newline:lf"
+  of "crlf", "newline-crlf": "--newline:crlf"
+  of "bom": "--bom:reject"
+  of "indent-consistency", "indent": "--indent-consistency"
+  else:
+    ok = false
+    ""
+
+proc addFlag(flags: var string; f: string) =
+  ## Append a flag once (dedup keeps the command tidy; repeats are harmless).
+  if f.len == 0: return
+  var i = 0
+  # crude contains-token check; flag set is tiny
+  while i < flags.len:
+    var j = i
+    while j < flags.len and flags[j] != ' ': inc j
+    if substr(flags, i, j - 1) == f: return
+    i = j + 1
+  if flags.len > 0: flags.add " "
+  flags.add f
 
 proc sevName(s: Severity): string =
   case s
@@ -120,7 +157,7 @@ proc fixOne(opts: Options; file: string; useStdin: bool; displayName: string): i
     write stderr, "aowlsuggest: cannot read " &
       (if useStdin: "stdin" else: "file: " & file) & "\n"
     return 2
-  let outcome = autofix(opts.parserBin, src)
+  let outcome = autofix(opts.parserBin, src, opts.checkFlags)
   if not outcome.ok:
     write stderr, "aowlsuggest: " & outcome.error & "\n"
     return 2
@@ -215,7 +252,7 @@ proc cmdLint(opts: Options; paths: seq[string]): int =
     let file = files[fi]
     var readOk = false
     let src = readSource(file, readOk)
-    let res = runCheckerOnFile(opts.parserBin, file)
+    let res = runCheckerOnFile(opts.parserBin, file, opts.checkFlags)
     if not res.ok:
       inc runFailures
       write stderr, "aowlsuggest: " & file & ": " & res.error & "\n"
@@ -293,8 +330,8 @@ proc cmdCheck(opts: Options; file: string): int =
     return 2
   let displayName = if opts.useStdin: opts.filename else: file
   let res =
-    if opts.useStdin: checkSource(opts.parserBin, src)
-    else: runCheckerOnFile(opts.parserBin, file)
+    if opts.useStdin: checkSource(opts.parserBin, src, opts.checkFlags)
+    else: runCheckerOnFile(opts.parserBin, file, opts.checkFlags)
   if not res.ok:
     write stderr, "aowlsuggest: " & res.error & "\n"
     return 2
@@ -329,8 +366,8 @@ proc cmdLsp(opts: Options; file: string): int =
     return 2
   let displayName = if opts.useStdin: opts.filename else: file
   let res =
-    if opts.useStdin: checkSource(opts.parserBin, src)
-    else: runCheckerOnFile(opts.parserBin, file)
+    if opts.useStdin: checkSource(opts.parserBin, src, opts.checkFlags)
+    else: runCheckerOnFile(opts.parserBin, file, opts.checkFlags)
   if not res.ok:
     write stderr, "aowlsuggest: " & res.error & "\n"
     return 2
@@ -403,13 +440,25 @@ proc usage(): int =
   write stderr, "  --no-suppress    ignore inline '# aowlsuggest:ignore' markers\n"
   write stderr, "  --stdin          (fix/lsp/check) read source from stdin\n"
   write stderr, "  --filename:NAME  (with --stdin) the path to report\n"
+  write stderr, "style (opt-in lint policies, off by default; each is auto-fixable):\n"
+  write stderr, "  --pedantic       enable trailing-whitespace + final-newline + bom\n"
+  write stderr, "  --style:CAT      enable one policy; repeatable. CAT is one of:\n"
+  write stderr, "                     trailing-whitespace  final-newline  bom\n"
+  write stderr, "                     lf | crlf (EOL convention)  indent-consistency\n"
+  write stderr, "  --indent-width:N advisory: warn when indent isn't a multiple of N\n"
   return 1
+
+proc validIndentWidth(s: string): bool =
+  if s.len == 0: return false
+  for i in 0 ..< s.len:
+    if s[i] < '0' or s[i] > '9': return false
+  return true
 
 proc main(): int =
   var opts = Options(parserBin: defaultParserBin(), excludes: @[],
                      suppress: true, format: "text", stats: false,
                      doWrite: false, useStdin: false, filename: "stdin",
-                     color: false)
+                     color: false, checkFlags: "")
   var positional: seq[string] = @[]
   let cli = commandLineParams()
   for ci in 0 ..< cli.len:
@@ -420,6 +469,11 @@ proc main(): int =
     elif a == "--stats": opts.stats = true
     elif a == "--color": opts.color = true
     elif a == "--no-suppress": opts.suppress = false
+    elif a == "--pedantic":
+      # the universally-safe, auto-fixable style set
+      addFlag(opts.checkFlags, "--trailing-whitespace:warn")
+      addFlag(opts.checkFlags, "--final-newline:require")
+      addFlag(opts.checkFlags, "--bom:reject")
     elif a == "--help" or a == "-h": return usage()
     elif a == "--version":
       write stdout, "aowlsuggest " & aowlsuggestVersion & "\n"; return 0
@@ -427,6 +481,21 @@ proc main(): int =
     elif startsWith(a, "--filename:"): opts.filename = afterColon(a)
     elif startsWith(a, "--exclude:"): opts.excludes.add afterColon(a)
     elif startsWith(a, "--format:"): opts.format = afterColon(a)
+    elif startsWith(a, "--style:"):
+      let cat = afterColon(a)
+      var ok = false
+      let f = styleFlag(cat, ok)
+      if not ok:
+        write stderr, "aowlsuggest: unknown --style category: " & cat &
+          " (trailing-whitespace, final-newline, lf, crlf, bom, indent-consistency)\n"
+        return 2
+      addFlag(opts.checkFlags, f)
+    elif startsWith(a, "--indent-width:"):
+      let n = afterColon(a)
+      if not validIndentWidth(n):
+        write stderr, "aowlsuggest: --indent-width expects a number\n"
+        return 2
+      addFlag(opts.checkFlags, "--indent-width:" & n)
     else: positional.add a
   if positional.len < 1: return usage()
   let action = positional[0]
@@ -443,7 +512,7 @@ proc main(): int =
     if not opts.useStdin and rest.len < 1: return usage()
     return cmdLsp(opts, if rest.len >= 1: rest[0] else: "")
   of "lsp-server":
-    return runLspServer(opts.parserBin)
+    return runLspServer(opts.parserBin, opts.checkFlags)
   of "check":
     if not opts.useStdin and rest.len < 1: return usage()
     return cmdCheck(opts, if rest.len >= 1: rest[0] else: "")

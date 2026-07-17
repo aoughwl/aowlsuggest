@@ -161,15 +161,23 @@ proc parseCheckOutput*(jsonText: string; exitCode: int): CheckResult =
     if result.diags[i].severity == sevError: inc n
   result.errorCount = n
 
-proc runCheckerOnFile*(parserBin, file: string): CheckResult =
-  ## Run `parserBin check --diagnostics:json <file>`, capturing its JSON via a
-  ## temp file (aowlparser emits the whole array on ONE line, and nimony's
+proc runCheckerOnFile*(parserBin, file: string; extra = ""): CheckResult =
+  ## Run `parserBin check --diagnostics:json <extra> <file>`, capturing its JSON
+  ## via a temp file (aowlparser emits the whole array on ONE line, and nimony's
   ## execCmdEx line-capture mangles lines longer than its buffer — a file
   ## redirect reads the output whole and is immune). Never raises.
+  ##
+  ## `extra` is a pre-composed run of aowlparser flags that opt in to its
+  ## normally-off lint policies (`--trailing-whitespace:warn`,
+  ## `--final-newline:require`, `--newline:lf`, `--bom:reject`, …). Callers build
+  ## it from a fixed whitelist (see the CLI's `styleFlags`), so it never carries
+  ## user-controlled shell text. Empty by default → the plain, zero-FP check.
   # aowlkit.captureShell redirects the checker's stdout to a temp file and reads
   # it whole — immune to nimony's execCmdEx long-line mangling (aowlparser emits
   # the whole diagnostic array on ONE line).
-  let cmd = shellQuote(parserBin) & " check --diagnostics:json " & shellQuote(file)
+  var cmd = shellQuote(parserBin) & " check --diagnostics:json"
+  if extra.len > 0: cmd.add " " & extra
+  cmd.add " " & shellQuote(file)
   let cap = captureShell(cmd)
   if not cap.ok:
     return CheckResult(diags: @[], ok: false,
@@ -177,17 +185,19 @@ proc runCheckerOnFile*(parserBin, file: string): CheckResult =
       errorCount: 0, ranExit: cap.exitCode)
   result = parseCheckOutput(cap.output, cap.exitCode)
 
-proc checkSource*(parserBin, src: string): CheckResult =
+proc checkSource*(parserBin, src: string; extra = ""): CheckResult =
   ## Check an in-memory source string by materialising it to a temp `.nim` file
   ## and running the checker over it. This is how the fix engine verifies a
-  ## candidate edit without touching the user's file.
+  ## candidate edit without touching the user's file. `extra` carries the same
+  ## opt-in lint flags as `runCheckerOnFile`, so a candidate is re-checked under
+  ## the SAME policy that surfaced the diagnostic being fixed.
   let srcPath = tempPath("cand", ".nim")
   try:
     writeFile(srcPath, src)
   except:
     return CheckResult(diags: @[], ok: false,
       error: "could not write candidate source", errorCount: 0, ranExit: -1)
-  result = runCheckerOnFile(parserBin, srcPath)
+  result = runCheckerOnFile(parserBin, srcPath, extra)
   try:
     removeFile(path(srcPath))
   except:

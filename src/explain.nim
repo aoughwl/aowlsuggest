@@ -191,25 +191,30 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "derived indent step.", badExample: "", goodExample: "", autofixable: false),
     CodeInfo(code: "trailing-whitespace",
       title: "Trailing whitespace",
-      explanation: "Advisory (only under --trailing-whitespace:warn): a line " &
-        "has spaces or tabs before its newline.", badExample: "", goodExample: "",
-      autofixable: false),
+      explanation: "A line has spaces or tabs before its newline. Opt in with " &
+        "--style:trailing-whitespace (or --pedantic); aowlsuggest then deletes " &
+        "the trailing run — a whitespace-only, program-preserving fix.",
+      badExample: "let x = 1␠␠␠", goodExample: "let x = 1", autofixable: true),
     CodeInfo(code: "line-ending",
       title: "Line ending does not match the configured policy",
-      explanation: "Advisory (only under --newline:lf|crlf): a line's ending " &
-        "(LF vs CRLF) doesn't match the asserted convention.",
-      badExample: "", goodExample: "", autofixable: false),
+      explanation: "A line's ending (LF vs CRLF) doesn't match the asserted " &
+        "convention. Opt in with --style:lf (or --style:crlf); aowlsuggest " &
+        "rewrites the terminator — a whitespace-only fix.",
+      badExample: "let x = 1<CR><LF>  (under --style:lf)",
+      goodExample: "let x = 1<LF>", autofixable: true),
     CodeInfo(code: "missing-final-newline",
       title: "File does not end with a newline",
-      explanation: "Advisory (only under --final-newline:require): the source " &
-        "does not end with a trailing newline.", badExample: "", goodExample: "",
-      autofixable: false),
+      explanation: "The source does not end with a trailing newline. Opt in " &
+        "with --style:final-newline (or --pedantic); aowlsuggest appends one.",
+      badExample: "…last line (no newline)", goodExample: "…last line\\n",
+      autofixable: true),
     CodeInfo(code: "bom-rejected",
       title: "Leading UTF-8 BOM rejected",
-      explanation: "A leading UTF-8 byte-order mark was found and the " &
-        "--bom:reject policy rejects it. Only emitted under that non-default " &
-        "policy (aowlsuggest checks with defaults, which strip the BOM " &
-        "silently).", badExample: "", goodExample: "", autofixable: false),
+      explanation: "A leading UTF-8 byte-order mark was found. Opt in with " &
+        "--style:bom to reject it; aowlsuggest then strips the 3 BOM bytes " &
+        "(the default check strips the BOM silently and reports nothing).",
+      badExample: "<EF BB BF>let x = 1", goodExample: "let x = 1",
+      autofixable: true),
   ]
 
 proc lookup*(code: string; found: var bool): CodeInfo =
