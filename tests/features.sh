@@ -60,6 +60,23 @@ grep -q 'auto-fixable: no' <<<"$("$AS" explain expected-condition 2>&1)" || {
 "$AS" explain no-such-code >/dev/null 2>&1 && { echo "FAIL: explain unknown code should fail"; fail=1; }
 grep -q 'assignment-in-condition' <<<"$("$AS" explain 2>&1)" || { echo "FAIL: explain list"; fail=1; }
 
+# --- KB completeness: every diagnostic code aowlparser can emit is known ----
+# Derive the authoritative code set straight from aowlparser's source (the
+# kebab-case string literals it emits, minus the 'nim-parsed' NIF dialect stamp)
+# and assert `explain <code>` succeeds for each — so a newly-added aowlparser
+# code that we forgot to document makes this test fail loudly.
+APSRC="${AOWLPARSER_SRC:-/home/savant/aifparser/src}"
+if [ -d "$APSRC" ]; then
+  mapfile -t CODES < <(grep -rhoE '"[a-z]+(-[a-z]+)+"' "$APSRC" | tr -d '"' \
+                         | grep -v '^nim-parsed$' | sort -u)
+  for code in "${CODES[@]}"; do
+    "$AS" explain "$code" >/dev/null 2>&1 || {
+      echo "FAIL: aowlparser code '$code' is not in the knowledge base"; fail=1; }
+  done
+else
+  echo "note: aowlparser src not at $APSRC — skipping KB-completeness cross-check"
+fi
+
 # --- inline suppression ----------------------------------------------------
 # same-line ignore silences everything on the line
 printf 'if x = 5:  # aowlsuggest:ignore\n  discard\n' > "$WORK/s.nim"

@@ -66,6 +66,48 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "introduced with '='. A bare forward declaration is fine without one.",
       badExample: "proc f()\n  echo 1", goodExample: "proc f() =\n  echo 1",
       autofixable: true),
+    CodeInfo(code: "missing-type-equals",
+      title: "Type has a body but no '='",
+      explanation: "A type declaration has an indented body (fields, or " &
+        "'object'/'enum' members) but no '=' to introduce it. The right " &
+        "completion ('= object' / '= enum' / '= …') can't be inferred, so it " &
+        "is reported rather than guessed.",
+      badExample: "type T\n  x: int", goodExample: "type T = object\n  x: int",
+      autofixable: false),
+    CodeInfo(code: "of-without-value",
+      title: "'of' branch has no value to match",
+      explanation: "An 'of' branch (in a case statement or an object variant) " &
+        "has a ':' with no value between 'of' and it — there is nothing to " &
+        "match against.", badExample: "case x\nof:\n  discard",
+      goodExample: "case x\nof 1:\n  discard", autofixable: false),
+    CodeInfo(code: "empty-variant-branch",
+      title: "Object-variant branch has an empty body",
+      explanation: "An object-variant 'of' branch declares no fields; a branch " &
+        "body must contain at least a field, or 'nil'/'discard' for an " &
+        "intentionally empty one.",
+      badExample: "case k\nof A: nil\nof B:", goodExample: "case k\nof A: nil\nof B: nil",
+      autofixable: false),
+    CodeInfo(code: "enum-member-not-identifier",
+      title: "Enum member is not an identifier",
+      explanation: "An enum body contains something other than a member name " &
+        "(e.g. a keyword like 'when'). Enum members must be plain identifiers; " &
+        "conditional members aren't allowed.",
+      badExample: "type E = enum\n  when x: a", goodExample: "type E = enum\n  a, b",
+      autofixable: false),
+    CodeInfo(code: "func-in-type-description",
+      title: "'func' used in a type description",
+      explanation: "'func' can't appear in a type position (field/param/alias " &
+        "types); use 'proc (...) {.noSideEffect.}'. Not auto-fixed because a " &
+        "bare 'proc' would silently drop the no-side-effect guarantee 'func' " &
+        "implies.",
+      badExample: "var x: func (): int",
+      goodExample: "var x: proc (): int {.noSideEffect.}", autofixable: false),
+    CodeInfo(code: "unknown-byte",
+      title: "Illegal byte in source",
+      explanation: "An unknown/illegal byte was found and skipped. Deleting it " &
+        "could change intent (it may be corrupted text), so it is reported " &
+        "rather than auto-removed.",
+      badExample: "let x = 1\x00", goodExample: "let x = 1", autofixable: false),
     CodeInfo(code: "expression-expected",
       title: "Expression expected",
       explanation: "An operator, comma, or dot has no operand after it, or a " &
@@ -147,6 +189,27 @@ proc knowledgeBase*(): seq[CodeInfo] =
       title: "Inconsistent indent step",
       explanation: "Advisory: a line's indent isn't a multiple of the file's " &
         "derived indent step.", badExample: "", goodExample: "", autofixable: false),
+    CodeInfo(code: "trailing-whitespace",
+      title: "Trailing whitespace",
+      explanation: "Advisory (only under --trailing-whitespace:warn): a line " &
+        "has spaces or tabs before its newline.", badExample: "", goodExample: "",
+      autofixable: false),
+    CodeInfo(code: "line-ending",
+      title: "Line ending does not match the configured policy",
+      explanation: "Advisory (only under --newline:lf|crlf): a line's ending " &
+        "(LF vs CRLF) doesn't match the asserted convention.",
+      badExample: "", goodExample: "", autofixable: false),
+    CodeInfo(code: "missing-final-newline",
+      title: "File does not end with a newline",
+      explanation: "Advisory (only under --final-newline:require): the source " &
+        "does not end with a trailing newline.", badExample: "", goodExample: "",
+      autofixable: false),
+    CodeInfo(code: "bom-rejected",
+      title: "Leading UTF-8 BOM rejected",
+      explanation: "A leading UTF-8 byte-order mark was found and the " &
+        "--bom:reject policy rejects it. Only emitted under that non-default " &
+        "policy (aowlsuggest checks with defaults, which strip the BOM " &
+        "silently).", badExample: "", goodExample: "", autofixable: false),
   ]
 
 proc lookup*(code: string; found: var bool): CodeInfo =
