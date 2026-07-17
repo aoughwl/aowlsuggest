@@ -109,13 +109,21 @@ candidate edit, re-runs `aowlparser check`, and keeps it only if it **strictly
 reduces the error count and introduces no new error code**. The checker itself is
 the oracle; a bad edit can never survive.
 
-This is proven against aowlparser's own oracle corpus of known-valid files —
-`nimony/src` (184), `nimony/lib` (105), and the full upstream `Nim/lib` (310),
-**599 files** — where aowlsuggest reports **0 errors** and proposes **0 fixes**.
+This is proven two ways:
+
+- **No false diagnostics / fixes on valid code.** Against aowlparser's own oracle
+  corpus of known-valid files — `nimony/src` (184), `nimony/lib` (105), and the
+  full upstream `Nim/lib` (310), **599 files** — aowlsuggest reports **0 errors**
+  and proposes **0 fixes**. (`tests/zerofp.sh`)
+- **Never makes messy code worse.** Over the full Nim compiler test corpus
+  (**2890 files**, deliberately malformed), `fix` never increases the error
+  count, and every file it changes strictly *reduces* it — the monotonicity
+  invariant the verify loop enforces. (`tests/stress.sh`)
+
 Run it yourself:
 
 ```sh
-bash tests/run.sh        # behavioural fix tests + the 599-file zero-FP proof
+bash tests/run.sh        # fix tests + 599-file zero-FP proof + 2890-file realism gate
 ```
 
 ## Build

@@ -15,6 +15,11 @@ bash "$ROOT/tests/fix.sh" || fail=1
 echo
 echo "== zerofp.sh =="
 bash "$ROOT/tests/zerofp.sh" || fail=1
+echo
+echo "== stress.sh =="
+# Realism gate over the full Nim compiler test corpus (deliberately malformed
+# files). Skips cleanly if that corpus is absent. Override SAMPLE to trim.
+SAMPLE="${SAMPLE:-3000}" bash "$ROOT/tests/stress.sh" || fail=1
 
 echo
 if [ "$fail" -eq 0 ]; then echo "ALL TESTS PASSED"; else echo "TEST FAILURES"; fi
