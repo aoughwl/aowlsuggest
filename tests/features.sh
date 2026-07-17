@@ -50,6 +50,16 @@ sarif="$("$AS" lint "$WORK/proj/x.nim" --format:sarif 2>&1)"
 grep -q '"version":"2.1.0"' <<<"$sarif" || { echo "FAIL: sarif version"; fail=1; }
 grep -q '"ruleId":"assignment-in-condition"' <<<"$sarif" || { echo "FAIL: sarif ruleId"; fail=1; }
 grep -q '"startLine":1' <<<"$sarif" || { echo "FAIL: sarif 1-based line"; fail=1; }
+# SARIF `fixes`: the auto-fix is emitted as a one-click suggestion, and the whole
+# document validates as JSON with a well-formed replacement.
+python3 - <<PY || { echo "FAIL: sarif fixes malformed"; fail=1; }
+import json
+d=json.loads('''$sarif''')
+r=d["runs"][0]["results"][0]
+fx=r["fixes"][0]["artifactChanges"][0]["replacements"][0]
+assert fx["insertedContent"]["text"]=="==", fx
+assert fx["deletedRegion"]["startLine"]==1, fx
+PY
 
 # --- explain ---------------------------------------------------------------
 "$AS" explain assignment-in-condition 2>&1 | grep -q "did you mean" >/dev/null 2>&1 || true

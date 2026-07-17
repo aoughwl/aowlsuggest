@@ -248,6 +248,7 @@ proc cmdLint(opts: Options; paths: seq[string]): int =
   # per-file diagnostics captured once, reused by every output format
   var allFiles: seq[string] = @[]
   var allDiags: seq[seq[Diagnostic]] = @[]
+  var allSrcs: seq[string] = @[]   # parallel to allFiles (for SARIF fixes)
   for fi in 0 ..< files.len:
     let file = files[fi]
     var readOk = false
@@ -258,6 +259,7 @@ proc cmdLint(opts: Options; paths: seq[string]): int =
       write stderr, "aowlsuggest: " & file & ": " & res.error & "\n"
       allFiles.add file
       allDiags.add @[]
+      allSrcs.add ""
       continue
     var diags = res.diags
     if readOk:
@@ -266,6 +268,7 @@ proc cmdLint(opts: Options; paths: seq[string]): int =
       totalSuppressed += (before - diags.len)
     allFiles.add file
     allDiags.add diags
+    allSrcs.add (if readOk: src else: "")
     if diags.len > 0: inc filesWithIssues
     for i in 0 ..< diags.len:
       if diags[i].severity == sevError: inc totalErrors
@@ -291,7 +294,7 @@ proc cmdLint(opts: Options; paths: seq[string]): int =
       $totalSuppressed & ",\"runFailures\":" & $runFailures & "}}"
     write stdout, s & "\n"
   of "sarif":
-    write stdout, sarifRun(allFiles, allDiags, aowlsuggestVersion) & "\n"
+    write stdout, sarifRun(allFiles, allDiags, aowlsuggestVersion, allSrcs) & "\n"
   else:
     for fi in 0 ..< allFiles.len:
       for i in 0 ..< allDiags[fi].len:
@@ -348,7 +351,7 @@ proc cmdCheck(opts: Options; file: string): int =
     s.add "]"
     write stdout, s & "\n"
   of "sarif":
-    write stdout, sarifRun(@[displayName], @[diags], aowlsuggestVersion) & "\n"
+    write stdout, sarifRun(@[displayName], @[diags], aowlsuggestVersion, @[src]) & "\n"
   else:
     for i in 0 ..< diags.len:
       write stdout, diagLine(displayName, diags[i], opts.color) & "\n"

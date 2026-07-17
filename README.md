@@ -169,6 +169,11 @@ tooling, `--format:sarif` for **GitHub code scanning** and other SARIF 2.1.0
 consumers. `--stats` adds a per-code count. Exits non-zero if any file has an
 error-severity diagnostic or fails to run — CI-friendly.
 
+The SARIF output carries **`fixes`**: every diagnostic with a verified auto-fix
+(including the "did you mean" alternatives) emits a SARIF `fix` with a precise
+`deletedRegion` + `insertedContent`, so GitHub renders them as one-click *Apply
+fix* suggestions right in the PR.
+
 ### `lsp` and `lsp-server`
 
 `lsp` emits a one-shot editor payload: LSP `Diagnostic` objects (0-based ranges,
