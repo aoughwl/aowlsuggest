@@ -17,7 +17,9 @@
 ## grow), and only the genuinely-required fields (code, line, col) being absent
 ## is treated as a hard error.
 
-import std/[json, osproc, syncio, envvars, appdirs, paths, dirs, strutils, monotimes]
+import std/[json, syncio, envvars, paths, dirs, strutils]
+import aowlkit/subprocess
+import aowlkit/tempfile
 
 type
   Severity* = enum
@@ -67,35 +69,6 @@ proc defaultParserBin*(): string =
   if result.len == 0:
     result = "/home/savant/aifparser/bin/aowlparser"
 
-var gTmpCounter = 0
-
-proc tempFile(tag, ext: string): string =
-  ## A per-process-unique temp path. Combines the temp dir, a monotonic tick, and
-  ## an incrementing counter so repeated calls within one run never collide.
-  inc gTmpCounter
-  var ticks = 0'i64
-  try:
-    ticks = getMonoTime().ticks
-  except:
-    ticks = 0
-  var td = "/tmp"
-  try:
-    td = $getTempDir()
-  except:
-    td = "/tmp"
-  if td.len > 0 and td[td.len - 1] == '/':
-    td = substr(td, 0, td.len - 2)
-  result = td & "/aowlsuggest_" & tag & "_" & $ticks & "_" & $gTmpCounter & ext
-
-proc shellQuote(s: string): string =
-  ## Single-quote a path for safe inclusion in a `sh -c` command line.
-  result = "'"
-  for i in 0 ..< s.len:
-    if s[i] == '\'':
-      result.add "'\\''"
-    else:
-      result.add s[i]
-  result.add "'"
 
 proc severityFromStr(s: string): Severity =
   case s
@@ -193,35 +166,22 @@ proc runCheckerOnFile*(parserBin, file: string): CheckResult =
   ## temp file (aowlparser emits the whole array on ONE line, and nimony's
   ## execCmdEx line-capture mangles lines longer than its buffer — a file
   ## redirect reads the output whole and is immune). Never raises.
-  let outPath = tempFile("out", ".json")
-  # execCmd evaluates the string through `sh -c`, so a plain shell redirect sends
-  # the checker's JSON straight to our temp file.
-  let cmd = shellQuote(parserBin) & " check --diagnostics:json " &
-    shellQuote(file) & " > " & shellQuote(outPath) & " 2>/dev/null"
-  var code = -1
-  try:
-    code = execCmd(cmd)
-  except:
+  # aowlkit.captureShell redirects the checker's stdout to a temp file and reads
+  # it whole — immune to nimony's execCmdEx long-line mangling (aowlparser emits
+  # the whole diagnostic array on ONE line).
+  let cmd = shellQuote(parserBin) & " check --diagnostics:json " & shellQuote(file)
+  let cap = captureShell(cmd)
+  if not cap.ok:
     return CheckResult(diags: @[], ok: false,
       error: "could not run aowlparser (" & parserBin & ")",
-      errorCount: 0, ranExit: -1)
-  var outp = ""
-  try:
-    outp = readFile(outPath)
-  except:
-    return CheckResult(diags: @[], ok: false,
-      error: "could not read aowlparser output", errorCount: 0, ranExit: code)
-  try:
-    removeFile(path(outPath))
-  except:
-    discard
-  result = parseCheckOutput(outp, code)
+      errorCount: 0, ranExit: cap.exitCode)
+  result = parseCheckOutput(cap.output, cap.exitCode)
 
 proc checkSource*(parserBin, src: string): CheckResult =
   ## Check an in-memory source string by materialising it to a temp `.nim` file
   ## and running the checker over it. This is how the fix engine verifies a
   ## candidate edit without touching the user's file.
-  let srcPath = tempFile("cand", ".nim")
+  let srcPath = tempPath("cand", ".nim")
   try:
     writeFile(srcPath, src)
   except:

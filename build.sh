@@ -11,11 +11,12 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NIMONY="${NIMONY:-$HOME/nimony/bin/nimony}"
+AOWLKIT="${AOWLKIT:-$HOME/aowlkit/src}"
 LOCK="${NIMONY_BUILD_LOCK:-$HOME/.nimony-build.lock}"
 cd "$ROOT"
 
 build() {
-  "$NIMONY" c --base:src -d:nimony src/aowlsuggest.nim 2>&1
+  "$NIMONY" c --base:src -p:"$AOWLKIT" -d:nimony src/aowlsuggest.nim 2>&1
 }
 
 run_locked() {
