@@ -115,8 +115,10 @@ proc knowledgeBase*(): seq[CodeInfo] =
       autofixable: false),
     CodeInfo(code: "invalid-int-literal",
       title: "Malformed integer literal",
-      explanation: "An integer literal is written in an invalid form.",
-      badExample: "echo 0O5", goodExample: "echo 0o5", autofixable: false),
+      explanation: "An integer literal is written in an invalid form. A base " &
+        "prefix spelled with an uppercase letter ('0O'/'0B') can be auto-fixed " &
+        "by lowercasing it.",
+      badExample: "echo 0O5", goodExample: "echo 0o5", autofixable: true),
     CodeInfo(code: "invalid-identifier",
       title: "Malformed identifier",
       explanation: "An identifier has a leading/trailing or doubled underscore.",

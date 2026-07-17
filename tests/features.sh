@@ -22,6 +22,7 @@ fix_case unterminated-char "let c = 'a\n"       "let c = 'a'\n"
 fix_case unmatched-close   'x)\n'               'x\n'
 fix_case unclosed-1line    'let a = (1 + 2\n'   'let a = (1 + 2)\n'
 fix_case unterminated-str  'let s = "hello\n'   'let s = "hello"\n'
+fix_case invalid-int-lit   'echo 0O5\n'         'echo 0o5\n'
 
 # a mid-line tab becomes a space; an INDENTATION tab is left alone (suggestion).
 printf 'let\tx = 1\n' > "$WORK/tab.nim"

@@ -181,6 +181,26 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
       result.edit = TextEdit(startOff: e, endOff: e, replacement: "\"",
                              label: "insert closing '\"'")
       result.hint = "add the closing \""
+  of "invalid-int-literal":
+    # A base prefix written with an uppercase letter — `0O5` / `0B1` (and the
+    # like). aowlparser spans the two-char prefix (`0O`); lowercase its letter.
+    # Only the letter changes, so the literal's value is untouched.
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    let b = lineColToOffset(src, starts, d.line, d.endCol)
+    if b == a + 2 and charAt(src, a) == '0':
+      let letter = charAt(src, a + 1)
+      var lower = '\0'
+      case letter
+      of 'O': lower = 'o'
+      of 'X': lower = 'x'
+      of 'B': lower = 'b'
+      else: discard
+      if lower != '\0':
+        result.kind = fkAuto
+        result.edit = TextEdit(startOff: a + 1, endOff: a + 2,
+                               replacement: $lower,
+                               label: "lowercase the '" & $letter & "' prefix")
+        result.hint = "use lowercase '0" & $lower & "'"
   of "unterminated-comment":
     # A `#[` block comment runs to end-of-input with no `]#`; append the closer
     # at the end of the file. The verify loop discards it if that doesn't help.
