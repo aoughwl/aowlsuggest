@@ -30,7 +30,7 @@ die()  { echo "FAIL: $1"; fail=1; }
 
 # helper: assert `check <flags> <file>` output contains a code (or NOT, with !)
 check_has() { # <flags> <file> <code>
-  local out; out="$("$AS" check $1 "$2" 2>/dev/null)"
+  local out; out="$("$AS" check --no-config $1 "$2" 2>/dev/null)"
   grep -q "\[$3\]" <<<"$out"
 }
 
@@ -38,7 +38,7 @@ echo "== (A) trailing-whitespace =="
 printf 'let x = 1   \nlet y = 2\n' > "$work/tw.nim"
 check_has "" "$work/tw.nim" trailing-whitespace && die "trailing-ws leaked into DEFAULT mode"
 check_has "--pedantic" "$work/tw.nim" trailing-whitespace || die "trailing-ws not flagged under --pedantic"
-"$AS" fix --pedantic --write "$work/tw.nim" >/dev/null 2>&1
+"$AS" fix --no-config --pedantic --write "$work/tw.nim" >/dev/null 2>&1
 [ "$(printf 'let x = 1\nlet y = 2\n')" = "$(cat "$work/tw.nim")" ] || die "trailing-ws not removed cleanly"
 check_has "--pedantic" "$work/tw.nim" trailing-whitespace && die "trailing-ws still present after fix"
 note "ok"
@@ -47,7 +47,7 @@ echo "== (A) missing-final-newline =="
 printf 'let a = 1' > "$work/fn.nim"   # no trailing newline
 check_has "" "$work/fn.nim" missing-final-newline && die "final-newline leaked into DEFAULT mode"
 check_has "--style:final-newline" "$work/fn.nim" missing-final-newline || die "final-newline not flagged"
-"$AS" fix --style:final-newline --write "$work/fn.nim" >/dev/null 2>&1
+"$AS" fix --no-config --style:final-newline --write "$work/fn.nim" >/dev/null 2>&1
 [ "$(printf 'let a = 1\n')" = "$(cat "$work/fn.nim")" ] || die "final newline not appended"
 note "ok"
 
@@ -55,7 +55,7 @@ echo "== (A) line-ending CRLF->LF =="
 printf 'let a = 1\r\nlet b = 2\r\n' > "$work/eol.nim"
 check_has "" "$work/eol.nim" line-ending && die "line-ending leaked into DEFAULT mode"
 check_has "--style:lf" "$work/eol.nim" line-ending || die "CRLF not flagged under --style:lf"
-"$AS" fix --style:lf --write "$work/eol.nim" >/dev/null 2>&1
+"$AS" fix --no-config --style:lf --write "$work/eol.nim" >/dev/null 2>&1
 if grep -q $'\r' "$work/eol.nim"; then die "CR not removed"; fi
 check_has "--style:lf" "$work/eol.nim" line-ending && die "line-ending still present after fix"
 note "ok"
@@ -64,18 +64,18 @@ echo "== (A) bom-rejected =="
 printf '\xEF\xBB\xBFlet z = 3\n' > "$work/bom.nim"
 check_has "" "$work/bom.nim" bom-rejected && die "bom leaked into DEFAULT mode"
 check_has "--style:bom" "$work/bom.nim" bom-rejected || die "BOM not flagged under --style:bom"
-"$AS" fix --style:bom --write "$work/bom.nim" >/dev/null 2>&1
+"$AS" fix --no-config --style:bom --write "$work/bom.nim" >/dev/null 2>&1
 [ "$(printf 'let z = 3\n')" = "$(cat "$work/bom.nim")" ] || die "BOM not stripped"
 note "ok"
 
 echo "== (A) cascade: trailing-ws AND missing-final-newline together =="
 printf 'let p = 1   \nlet q = 2   ' > "$work/both.nim"   # trailing ws + no EOF newline
-"$AS" fix --pedantic --write "$work/both.nim" >/dev/null 2>&1
+"$AS" fix --no-config --pedantic --write "$work/both.nim" >/dev/null 2>&1
 [ "$(printf 'let p = 1\nlet q = 2\n')" = "$(cat "$work/both.nim")" ] || die "cascade fix wrong"
 note "ok"
 
 echo "== (B) unknown --style category is rejected =="
-"$AS" check --style:bogus "$work/tw.nim" >/dev/null 2>&1 && die "bogus --style category accepted"
+"$AS" check --no-config --style:bogus "$work/tw.nim" >/dev/null 2>&1 && die "bogus --style category accepted"
 note "ok"
 
 # ── (C) program-preservation sweep over the valid corpus ─────────────────────
@@ -102,9 +102,9 @@ PY
 changed=0; broke=0; nonidem=0; touched=0
 for f in "${FILES[@]}"; do
   # fix over stdin so the original is never mutated; fixed source -> stdout
-  "$AS" fix --pedantic --stdin --filename:"$f" < "$f" > "$work/fixed" 2>/dev/null
+  "$AS" fix --no-config --pedantic --stdin --filename:"$f" < "$f" > "$work/fixed" 2>/dev/null
   # (1) parse must still be clean in DEFAULT mode
-  if ! "$AS" check "$work/fixed" >/dev/null 2>&1; then
+  if ! "$AS" check --no-config "$work/fixed" >/dev/null 2>&1; then
     # `check` exits nonzero only on an ERROR-severity diagnostic
     die "fix --pedantic broke the parse of a valid file: $f"; broke=$((broke+1)); continue
   fi
@@ -115,7 +115,7 @@ for f in "${FILES[@]}"; do
   # track whether anything at all changed (for reporting)
   cmp -s "$f" "$work/fixed" || touched=$((touched+1))
   # (3) idempotence
-  "$AS" fix --pedantic --stdin --filename:"$f" < "$work/fixed" > "$work/fixed2" 2>/dev/null
+  "$AS" fix --no-config --pedantic --stdin --filename:"$f" < "$work/fixed" > "$work/fixed2" 2>/dev/null
   if ! cmp -s "$work/fixed" "$work/fixed2"; then
     die "fix --pedantic is not idempotent: $f"; nonidem=$((nonidem+1))
   fi

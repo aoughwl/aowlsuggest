@@ -25,7 +25,7 @@ echo "corpus: ${#FILES[@]} valid files"
 
 # (1) census: one lint pass, assert zero errors / run-failures.
 census="$(mktemp)"; trap 'rm -f "$census"' EXIT
-"$AS" lint --format:json "${FILES[@]}" > "$census" 2>/dev/null
+"$AS" lint --no-config --format:json "${FILES[@]}" > "$census" 2>/dev/null
 read -r errors runfail < <(python3 - "$census" <<'PY'
 import json,sys
 d=json.load(open(sys.argv[1]))
@@ -44,7 +44,7 @@ changed=0
 checked=0
 for f in "${FILES[@]}"; do
   cp "$f" "$scratch/probe.nim"
-  "$AS" fix "$scratch/probe.nim" --write >/dev/null 2>&1
+  "$AS" fix --no-config "$scratch/probe.nim" --write >/dev/null 2>&1
   if ! cmp -s "$f" "$scratch/probe.nim"; then
     echo "FAIL: fix changed a VALID file: $f"
     changed=$((changed+1))

@@ -74,6 +74,8 @@ Common flags:
 - `--no-suppress` — ignore inline `# aowlsuggest:ignore` markers.
 - `--pedantic` / `--style:CAT` / `--indent-width:N` — opt in to aowlparser's
   stylistic lint policies (see **Style / lint policies**); off by default.
+- `--config:PATH` / `--no-config` — use a specific project `.aowlsuggest`, or
+  ignore config discovery (see **Project config**).
 - `--stdin` (with `fix`/`lsp`/`check`) — read the source from stdin instead of a
   file, so an editor can check an **unsaved buffer**. `--filename:NAME` sets the
   path reported in diagnostics and URIs. In this mode `fix` writes the corrected
@@ -136,6 +138,29 @@ same verify loop as every other fix — a style edit is kept only if re-checking
 under the *same* policy shows strictly fewer diagnostics and introduces no new
 code. The `lsp-server` honours these flags too, so an editor session lints
 exactly as the CLI would.
+
+### Project config — `.aowlsuggest`
+
+A repo can commit its lint/style defaults so `lint`, `fix`, and `lsp-server` all
+behave identically without repeating flags — and so an
+[aowllsp](https://github.com/aoughwl/aowllsp) editor session (which drives
+aowlsuggest) inherits the same policy. Discovery walks **up** from the working
+directory to the filesystem root and uses the first `.aowlsuggest` it finds.
+
+```ini
+# .aowlsuggest
+pedantic     = true
+style        = trailing-whitespace, final-newline, lf
+indent-width = 2
+exclude      = tests/fixtures/*, vendor/*
+suppress     = true
+parser       = /opt/aowlparser/bin/aowlparser
+```
+
+The config sets **defaults**; a command-line flag always overrides (scalars) or
+extends (lists) it, so it never weakens any guarantee. `--config:PATH` forces a
+specific file; `--no-config` ignores discovery entirely. Unknown keys and
+malformed values degrade to a stderr warning rather than a hard error.
 
 ### `lint`
 
@@ -236,6 +261,7 @@ codegen through a shared lock and prints `BUILD-OK` / `BUILD-FAIL`.
 | `src/explain.nim` | the diagnostic-code knowledge base |
 | `src/suppress.nim` | inline `# aowlsuggest:ignore` filtering |
 | `src/walk.nim` | directory walking + glob excludes |
+| `src/projconfig.nim` | the optional `.aowlsuggest` project config (discovery + parse) |
 | `src/jsonout.nim` | JSON string escaping |
 | `src/aowlsuggest.nim` | CLI |
 

@@ -22,6 +22,9 @@ echo
 echo "== style.sh =="
 bash "$ROOT/tests/style.sh" || fail=1
 echo
+echo "== config.sh =="
+bash "$ROOT/tests/config.sh" || fail=1
+echo
 echo "== stress.sh =="
 # Realism gate over the full Nim compiler test corpus (deliberately malformed
 # files). Skips cleanly if that corpus is absent. Override SAMPLE to trim.

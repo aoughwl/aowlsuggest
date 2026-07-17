@@ -25,7 +25,7 @@ echo "stress: ${#FILES[@]} of ${#ALL[@]} files from $CORPUS"
 scratch="$(mktemp -d)"; trap 'rm -rf "$scratch"' EXIT
 
 errcount() {  # errors reported for $1
-  "$AS" check --format:json "$1" 2>/dev/null | grep -o '"severity":"error"' | wc -l
+  "$AS" check --no-config --format:json "$1" 2>/dev/null | grep -o '"severity":"error"' | wc -l
 }
 
 changedFiles=0
@@ -34,7 +34,7 @@ worsened=0
 for f in "${FILES[@]}"; do
   before="$(errcount "$f")"
   cp "$f" "$scratch/p.nim"
-  "$AS" fix "$scratch/p.nim" --write >/dev/null 2>&1
+  "$AS" fix --no-config "$scratch/p.nim" --write >/dev/null 2>&1
   after="$(errcount "$scratch/p.nim")"
   if [ "$after" -gt "$before" ]; then
     echo "FAIL (I1): fix INCREASED errors ($before -> $after): $f"

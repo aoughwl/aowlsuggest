@@ -21,7 +21,7 @@
 
 import std/[syncio, cmdline, strutils]
 import contract, textedit, fixes, lsp, jsonout, walk, sarif, explain, suppress
-import lspserver
+import lspserver, projconfig
 
 const aowlsuggestVersion = "0.3.0"
 
@@ -446,6 +446,11 @@ proc usage(): int =
   write stderr, "                     trailing-whitespace  final-newline  bom\n"
   write stderr, "                     lf | crlf (EOL convention)  indent-consistency\n"
   write stderr, "  --indent-width:N advisory: warn when indent isn't a multiple of N\n"
+  write stderr, "config:\n"
+  write stderr, "  a project `.aowlsuggest` (found by walking up from the cwd) sets\n"
+  write stderr, "  defaults: pedantic, style, indent-width, exclude, suppress, parser.\n"
+  write stderr, "  --config:PATH    use a specific config file\n"
+  write stderr, "  --no-config      ignore any project config\n"
   return 1
 
 proc validIndentWidth(s: string): bool =
@@ -454,6 +459,30 @@ proc validIndentWidth(s: string): bool =
     if s[i] < '0' or s[i] > '9': return false
   return true
 
+proc applyConfig(opts: var Options; c: ProjectConfig) =
+  ## Fold a loaded `.aowlsuggest` into `opts` BEFORE the CLI flags run, so a
+  ## command-line flag always wins (scalars) or extends (lists).
+  if c.pedantic:
+    addFlag(opts.checkFlags, "--trailing-whitespace:warn")
+    addFlag(opts.checkFlags, "--final-newline:require")
+    addFlag(opts.checkFlags, "--bom:reject")
+  for cat in c.styles:
+    var ok = false
+    let f = styleFlag(cat, ok)
+    if ok: addFlag(opts.checkFlags, f)
+    else: write stderr, "aowlsuggest: " & c.path &
+      ": unknown style category: " & cat & "\n"
+  if c.indentWidth.len > 0:
+    if validIndentWidth(c.indentWidth):
+      addFlag(opts.checkFlags, "--indent-width:" & c.indentWidth)
+    else:
+      write stderr, "aowlsuggest: " & c.path & ": indent-width expects a number\n"
+  for g in c.excludes: opts.excludes.add g
+  if c.suppressSet: opts.suppress = c.suppress
+  if c.parserBin.len > 0: opts.parserBin = c.parserBin
+  for w in c.warnings:
+    write stderr, "aowlsuggest: " & c.path & ": " & w & "\n"
+
 proc main(): int =
   var opts = Options(parserBin: defaultParserBin(), excludes: @[],
                      suppress: true, format: "text", stats: false,
@@ -461,6 +490,32 @@ proc main(): int =
                      color: false, checkFlags: "")
   var positional: seq[string] = @[]
   let cli = commandLineParams()
+  # Discover & apply the project `.aowlsuggest` FIRST (CLI flags override it).
+  # Pre-scan so the effect is argument-order independent: the two config flags,
+  # plus the discovery anchor — --filename (the stdin/LSP case) or the first
+  # target path, so a committed config is found relative to the FILE, not just
+  # the cwd. That is what lets an aowllsp editor session inherit a repo's config.
+  var useConfig = true
+  var configPath = ""
+  var filenameArg = ""
+  var firstPath = ""
+  var sawCmd = false
+  for ci in 0 ..< cli.len:
+    let a = cli[ci]
+    if a == "--no-config": useConfig = false
+    elif startsWith(a, "--config:"): configPath = afterColon(a)
+    elif startsWith(a, "--filename:"): filenameArg = afterColon(a)
+    elif startsWith(a, "-"): discard          # any other flag
+    elif not sawCmd: sawCmd = true             # the subcommand token
+    elif firstPath.len == 0: firstPath = a     # the first positional path
+  if useConfig:
+    let anchor = anchorDirFor(firstPath, filenameArg)
+    let p = if configPath.len > 0: configPath else: discoverConfigPathFrom(anchor)
+    if p.len > 0:
+      let c = loadConfig(p)
+      if c.found: applyConfig(opts, c)
+      elif configPath.len > 0:
+        write stderr, "aowlsuggest: cannot read config: " & p & "\n"
   for ci in 0 ..< cli.len:
     let a = cli[ci]
     if a == "--write": opts.doWrite = true
@@ -469,6 +524,8 @@ proc main(): int =
     elif a == "--stats": opts.stats = true
     elif a == "--color": opts.color = true
     elif a == "--no-suppress": opts.suppress = false
+    elif a == "--no-config": discard        # handled in the pre-scan above
+    elif startsWith(a, "--config:"): discard # handled in the pre-scan above
     elif a == "--pedantic":
       # the universally-safe, auto-fixable style set
       addFlag(opts.checkFlags, "--trailing-whitespace:warn")
