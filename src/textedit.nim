@@ -2,7 +2,6 @@
 ## and a unified diff. Nothing here understands Nim; it only splices text at
 ## positions the contract layer hands us (all from aowlparser).
 
-import std/syncio
 import std/strutils
 
 type

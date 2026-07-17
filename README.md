@@ -4,8 +4,8 @@ The diagnostics / suggestion and editor-integration layer that sits **on top of
 [aowlparser](https://github.com/aoughwl/aowlparser)**. Where aowlparser is the
 recovering parser that turns Nim source into AIF *and reports every grammar/lex
 error it copes with*, aowlsuggest is the layer that makes those errors
-**actionable**: verified quick-fixes, batch/CI linting, and editor (LSP)
-payloads.
+**actionable**: verified quick-fixes, batch/CI linting (text, JSON, SARIF), a
+full stdio LSP server, code explanations, and inline suppression.
 
 Written in **nimony** (the same self-hosted compiler aowlparser builds with), so
 it stays JS-compilable and free of the classic Nim toolchain.
@@ -53,17 +53,25 @@ then `$AOWLPARSER`, then the default checkout.
 ## Commands
 
 ```sh
-aowlsuggest fix   <file> [--write] [--dry-run]   apply verified quick-fixes
-aowlsuggest lint  <files...> [--format:json]     batch lint (nonzero exit on error)
-aowlsuggest lsp   <file>                          LSP diagnostics + code actions (JSON)
-aowlsuggest check <file> [--format:json]          raw diagnostics pass-through
-aowlsuggest version                               print the version
+aowlsuggest fix    <paths...> [--write] [--dry-run]      apply verified quick-fixes
+aowlsuggest lint   <paths...> [--format:text|json|sarif] batch lint (nonzero exit on error)
+aowlsuggest lsp    <file>                                 LSP diagnostics + code actions (JSON)
+aowlsuggest lsp-server                                    a stdio LSP server (JSON-RPC)
+aowlsuggest check  <file> [--format:text|json|sarif]      raw diagnostics pass-through
+aowlsuggest explain [code] [--format:json]                explain a diagnostic code
+aowlsuggest version
 ```
 
+`<paths...>` are files **or directories** (directories are walked for `*.nim`).
 Common flags:
 
 - `--parser:PATH` — override the aowlparser binary (else `$AOWLPARSER`, else the
   default checkout).
+- `--exclude:GLOB` — skip paths matching a glob (`*` and `?`); repeatable.
+- `--format:FMT` — `text` (default), `json`, or `sarif` (lint/check).
+- `--stats` — (lint) also print a per-code count summary.
+- `--color` — colorize the human-readable output.
+- `--no-suppress` — ignore inline `# aowlsuggest:ignore` markers.
 - `--stdin` (with `fix`/`lsp`/`check`) — read the source from stdin instead of a
   file, so an editor can check an **unsaved buffer**. `--filename:NAME` sets the
   path reported in diagnostics and URIs. In this mode `fix` writes the corrected
@@ -71,8 +79,8 @@ Common flags:
 
 ### `fix`
 
-Applies the diagnostics' repairs to the source. Four diagnostic codes carry an
-**auto-applicable** edit today — each localized and unambiguous:
+Applies the diagnostics' repairs. Auto-applicable codes — each localized,
+guarded, and **verified** before it is kept:
 
 | code | repair |
 |------|--------|
@@ -80,26 +88,55 @@ Applies the diagnostics' repairs to the source. Four diagnostic codes carry an
 | `mismatched-bracket` | swap the wrong close bracket for the one that matches its opener |
 | `expected-colon` | insert `:` at the end of the block header |
 | `missing-routine-equals` | insert `=` after a routine signature that has a body |
+| `unterminated-char` | add the missing closing `'` |
+| `unmatched-close` | delete a surplus close bracket |
+| `unclosed-bracket` | add the matching close (single-line brackets) |
+| `tabs-not-allowed` | replace a **mid-line** tab with a space |
 
 Everything else with a repair hint is surfaced as a **suggestion** (needs human
 judgement), never auto-applied. `--dry-run` (the default) prints a unified diff;
-`--write` applies it. Independent errors — even a cascade — are all repaired in
-one pass.
+`--write` applies it. Directories and cascades are handled in one pass.
 
 ### `lint`
 
-Batch-lints many files. Human-readable by default, `--format:json` for tooling.
-Exits non-zero if any file has an error-severity diagnostic or fails to run —
-CI-friendly.
+Batch-lints files and directories. Human-readable by default; `--format:json` for
+tooling, `--format:sarif` for **GitHub code scanning** and other SARIF 2.1.0
+consumers. `--stats` adds a per-code count. Exits non-zero if any file has an
+error-severity diagnostic or fails to run — CI-friendly.
 
-### `lsp`
+### `lsp` and `lsp-server`
 
-Emits an editor payload: LSP `Diagnostic` objects (0-based ranges,
+`lsp` emits a one-shot editor payload: LSP `Diagnostic` objects (0-based ranges,
 `relatedInformation`) plus `CodeAction` quick-fixes carrying a `WorkspaceEdit`,
 in one JSON object `{uri, diagnostics, codeActions}`. When a diagnostic has more
 than one plausible repair (e.g. a mismatched bracket can be fixed at the close
 *or* the open), all are emitted as a ranked **"did you mean"** set — the first
-marked `isPreferred`, the alternatives offered for the user to pick.
+marked `isPreferred`.
+
+`lsp-server` is a full **stdio Language Server** (JSON-RPC 2.0 with
+`Content-Length` framing): `initialize`, `textDocument/{didOpen,didChange,`
+`didSave,didClose}` → live `publishDiagnostics`, and `textDocument/codeAction` →
+quick-fixes. Text sync is Full; diagnostics come from aowlparser on every edit.
+
+### `explain`
+
+`aowlsuggest explain <code>` describes a diagnostic (what it means, a bad/good
+example, whether it is auto-fixable); with no argument it lists every known code.
+The knowledge base is derived from aowlparser's diagnostic set.
+
+### Inline suppression
+
+A project can silence an accepted diagnostic with a comment (found by a source
+scan, not a reparse):
+
+```nim
+foo(bar)            # aowlsuggest:ignore                 (all codes, this line)
+baz(qux)            # aowlsuggest:ignore[expected-colon] (only these codes)
+# aowlsuggest:ignore-next
+next_line_here()
+```
+
+Suppression is on by default; `--no-suppress` disables it.
 
 ## Zero-false-positive discipline
 
@@ -123,8 +160,12 @@ This is proven two ways:
 Run it yourself:
 
 ```sh
-bash tests/run.sh        # fix tests + 599-file zero-FP proof + 2890-file realism gate
+bash tests/run.sh        # fix + feature tests, 599-file zero-FP proof, 2890-file realism gate
 ```
+
+The expanded auto-fixes (`unclosed-bracket`, `unmatched-close`, …) are more
+aggressive, but the verify loop keeps the guarantee intact: still **0 changes**
+across the 599 valid files, and **0 files ever worsened** across the 2890.
 
 ## Build
 
@@ -144,6 +185,11 @@ codegen through a shared lock and prints `BUILD-OK` / `BUILD-FAIL`.
 | `src/textedit.nim` | byte-offset edits, line/col mapping, unified diff |
 | `src/fixes.nim` | the fix registry + the verified zero-FP apply loop |
 | `src/lsp.nim` | diagnostics + code actions as editor JSON |
+| `src/lspserver.nim` | the stdio JSON-RPC Language Server |
+| `src/sarif.nim` | SARIF 2.1.0 output |
+| `src/explain.nim` | the diagnostic-code knowledge base |
+| `src/suppress.nim` | inline `# aowlsuggest:ignore` filtering |
+| `src/walk.nim` | directory walking + glob excludes |
 | `src/jsonout.nim` | JSON string escaping |
 | `src/aowlsuggest.nim` | CLI |
 

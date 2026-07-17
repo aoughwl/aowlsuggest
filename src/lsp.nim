@@ -61,17 +61,27 @@ proc diagnosticsJson*(file, src: string; diags: seq[Diagnostic]): string =
     result.add diagJson(diags[i], uri)
   result.add "]}"
 
-proc codeActionsJson*(file, src: string; diags: seq[Diagnostic]): string =
-  ## An array of LSP `CodeAction` quick-fixes. Each diagnostic contributes ALL
-  ## its plausible auto edits (the "did you mean" set), ranked — the first is
-  ## marked `isPreferred` (what `fix` would apply), the alternatives are equally
-  ## valid choices an editor can offer.
-  let uri = toFileUri(file)
+proc diagnosticsArrayForUri*(uri, src: string; diags: seq[Diagnostic]): string =
+  ## Just the LSP Diagnostic array (no wrapper) for an already-formed `uri`. Used
+  ## by the LSP server's `publishDiagnostics` notification.
+  result = "["
+  for i in 0 ..< diags.len:
+    if i > 0: result.add ","
+    result.add diagJson(diags[i], uri)
+  result.add "]"
+
+proc codeActionsForUri*(uri, src: string; diags: seq[Diagnostic];
+                        filterByLines: bool; loLine, hiLine: int): string =
+  ## An array of LSP `CodeAction` quick-fixes for `uri`. Each diagnostic
+  ## contributes ALL its ranked auto edits ("did you mean"), the first marked
+  ## `isPreferred`. When `filterByLines`, only diagnostics whose line falls in the
+  ## 0-based `[loLine, hiLine]` window contribute (an editor's codeAction range).
   let starts = lineStarts(src)
   result = "["
   var first = true
   for i in 0 ..< diags.len:
     let d = diags[i]
+    if filterByLines and (d.line - 1 < loLine or d.line - 1 > hiLine): continue
     let cands = candidateFixes(d, src, starts)
     for ci in 0 ..< cands.len:
       let plan = cands[ci]
@@ -88,17 +98,13 @@ proc codeActionsJson*(file, src: string; diags: seq[Diagnostic]): string =
           ",\"newText\":" & jStr(plan.edit.replacement) & "}]}}}"
   result.add "]"
 
+proc codeActionsJson*(file, src: string; diags: seq[Diagnostic]): string =
+  ## File-path convenience wrapper: all code actions, unfiltered.
+  codeActionsForUri(toFileUri(file), src, diags, false, 0, 0)
+
 proc lspReportJson*(file, src: string; diags: seq[Diagnostic]): string =
   ## Combined editor payload: diagnostics + code actions in one object.
-  result = "{\"uri\":" & jStr(toFileUri(file)) &
-    ",\"diagnostics\":"
-  # reuse diagnosticsJson's inner array by slicing off its wrapper is fiddly;
-  # just rebuild the array here for a self-contained object.
-  result.add "["
   let uri = toFileUri(file)
-  for i in 0 ..< diags.len:
-    if i > 0: result.add ","
-    result.add diagJson(diags[i], uri)
-  result.add "],\"codeActions\":"
-  result.add codeActionsJson(file, src, diags)
-  result.add "}"
+  result = "{\"uri\":" & jStr(uri) & ",\"diagnostics\":" &
+    diagnosticsArrayForUri(uri, src, diags) & ",\"codeActions\":" &
+    codeActionsForUri(uri, src, diags, false, 0, 0) & "}"

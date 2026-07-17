@@ -52,8 +52,12 @@ valid_untouched() {
   if [ "$before" != "$after" ]; then
     echo "FAIL[$name]: valid file was modified"; fail=1
   fi
-  grep -q 'no automatic fixes' <<<"$out" || {
-    echo "FAIL[$name]: expected 'no automatic fixes', got: $out"; fail=1; }
+  # nothing should have been applied to a valid file
+  grep -q 'fixed ' <<<"$out" && {
+    echo "FAIL[$name]: a fix was applied to a valid file: $out"; fail=1; }
+  # dry-run says so explicitly
+  grep -q 'no automatic fixes' <<<"$("$AS" fix "$WORK/v.nim" 2>&1)" || {
+    echo "FAIL[$name]: dry-run did not report 'no automatic fixes'"; fail=1; }
 }
 valid_untouched simple-proc  'proc f(x: int): int = x + 1\n'
 valid_untouched named-arg    'discard f(k = v)\n'

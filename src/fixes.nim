@@ -121,6 +121,57 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
         result.edit = TextEdit(startOff: e, endOff: e, replacement: " =",
                                label: "insert '='")
         result.hint = "insert '=' after the signature"
+  of "unterminated-char":
+    # `'a` -> `'a'`: insert the closing quote just past the span. Guard: the span
+    # must actually start at a `'`.
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    let b = lineColToOffset(src, starts, d.line, d.endCol)
+    if charAt(src, a) == '\'' and b > a:
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: b, endOff: b, replacement: "'",
+                             label: "insert closing '\\''")
+      result.hint = "add the closing '"
+  of "unmatched-close":
+    # A surplus close bracket with no opener: delete it. Guard: the span is a
+    # single close character.
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    let b = lineColToOffset(src, starts, d.line, d.endCol)
+    let cur = charAt(src, a)
+    if b == a + 1 and (cur == ')' or cur == ']' or cur == '}'):
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: a, endOff: b, replacement: "",
+                             label: "remove unmatched '" & $cur & "'")
+      result.hint = "remove the unmatched '" & $cur & "'"
+  of "unclosed-bracket":
+    # Best-effort: append the matching close at the end of the OPENING bracket's
+    # line. Correct for single-line brackets; the verify loop discards it when the
+    # bracket legitimately spans lines (the edit won't reduce errors there).
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    let openCur = charAt(src, a)
+    let want = closerFor(openCur)
+    if want != '\0':
+      let e = lineContentEndOffset(src, starts, d.line)
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: e, endOff: e, replacement: $want,
+                             label: "add matching '" & $want & "'")
+      result.hint = "add a matching '" & $want & "'"
+  of "tabs-not-allowed":
+    # Only a MID-LINE tab (not indentation) is unambiguous to replace with a
+    # space. A leading/indentation tab changes block structure by an unknown
+    # amount, so it stays a suggestion.
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    if charAt(src, a) == '\t':
+      let lineStart = starts[d.line - 1]
+      var onlyWs = true
+      var i = lineStart
+      while i < a:
+        if src[i] != ' ' and src[i] != '\t': onlyWs = false; break
+        inc i
+      if not onlyWs:
+        result.kind = fkAuto
+        result.edit = TextEdit(startOff: a, endOff: a + 1, replacement: " ",
+                               label: "replace tab with a space")
+        result.hint = "use a space instead of a tab"
   else:
     discard
 

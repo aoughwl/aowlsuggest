@@ -13,6 +13,9 @@ fi
 echo "== fix.sh =="
 bash "$ROOT/tests/fix.sh" || fail=1
 echo
+echo "== features.sh =="
+bash "$ROOT/tests/features.sh" || fail=1
+echo
 echo "== zerofp.sh =="
 bash "$ROOT/tests/zerofp.sh" || fail=1
 echo
