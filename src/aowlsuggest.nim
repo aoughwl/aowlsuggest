@@ -69,6 +69,8 @@ proc styleFlag(cat: string; ok: var bool): string =
   of "bom": "--bom:reject"
   of "c-operators", "c-ops": "--c-operators:warn"
   of "semicolons", "semicolon": "--semicolons:warn"
+  of "idioms", "idiom": "--idioms:warn"
+  of "float-equality", "float-eq": "--float-equality:warn"
   of "indent-consistency", "indent": "--indent-consistency"
   else:
     ok = false
@@ -481,10 +483,11 @@ proc usage(): int =
   write stderr, "  --stdin          (fix/lsp/check) read source from stdin\n"
   write stderr, "  --filename:NAME  (with --stdin) the path to report\n"
   write stderr, "style (opt-in lint policies, off by default; each is auto-fixable):\n"
-  write stderr, "  --pedantic       enable trailing-whitespace + final-newline + bom\n"
+  write stderr, "  --pedantic       enable trailing-whitespace + final-newline + bom + float-equality\n"
   write stderr, "  --style:CAT      enable one policy; repeatable. CAT is one of:\n"
   write stderr, "                     trailing-whitespace  final-newline  bom\n"
-  write stderr, "                     lf | crlf (EOL convention)  c-operators  indent-consistency\n"
+  write stderr, "                     lf | crlf (EOL convention)  c-operators  semicolons\n"
+  write stderr, "                     idioms (== true / not not)  float-equality  indent-consistency\n"
   write stderr, "  --indent-width:N advisory: warn when indent isn't a multiple of N\n"
   write stderr, "config:\n"
   write stderr, "  a project `.aowlsuggest` (found by walking up from the cwd) sets\n"
@@ -506,6 +509,7 @@ proc applyConfig(opts: var Options; c: ProjectConfig) =
     addFlag(opts.checkFlags, "--trailing-whitespace:warn")
     addFlag(opts.checkFlags, "--final-newline:require")
     addFlag(opts.checkFlags, "--bom:reject")
+    addFlag(opts.checkFlags, "--float-equality:warn")
   for cat in c.styles:
     var ok = false
     let f = styleFlag(cat, ok)
@@ -580,10 +584,11 @@ proc main(): int =
     elif a == "--no-config": discard        # handled in the pre-scan above
     elif startsWith(a, "--config:"): discard # handled in the pre-scan above
     elif a == "--pedantic":
-      # the universally-safe, auto-fixable style set
+      # the universally-safe, auto-fixable style set + the float-equality lint
       addFlag(opts.checkFlags, "--trailing-whitespace:warn")
       addFlag(opts.checkFlags, "--final-newline:require")
       addFlag(opts.checkFlags, "--bom:reject")
+      addFlag(opts.checkFlags, "--float-equality:warn")
     elif a == "--help" or a == "-h": return usage()
     elif a == "--version":
       write stdout, "aowlsuggest " & aowlsuggestVersion & "\n"; return 0

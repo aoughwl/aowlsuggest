@@ -194,6 +194,25 @@ suggest_only "extends"       'type Dog extends Animal = object\n' 'extends-inher
 suggest_only "yield-from"    'iterator it(): int =\n  yield from xs\n' 'yield-from'
 suggest_only "async-prefix"  'async proc f() = discard\n' 'async-routine-prefix'
 
+# opt-in idiom lints: surface only under their flag, never auto-applied.
+suggest_only_flag() {  # name | before | expected-code | flag
+  local name="$1" before="$2" code="$3" flag="$4"
+  printf '%b' "$before" > "$WORK/so.nim"
+  local b="$(cat "$WORK/so.nim")"
+  # must be SILENT without the flag
+  grep -q "$code" <<<"$("$AS" fix --no-config --write "$WORK/so.nim" 2>&1)" && {
+    echo "FAIL: $name ($code) must be OFF without $flag"; fail=1; }
+  printf '%b' "$before" > "$WORK/so.nim"; b="$(cat "$WORK/so.nim")"
+  local o="$("$AS" fix --no-config "$flag" --write "$WORK/so.nim" 2>&1)"
+  [ "$b" = "$(cat "$WORK/so.nim")" ] || { echo "FAIL: $name was auto-applied (must be suggestion-only)"; fail=1; }
+  grep -q "$code" <<<"$o" || { echo "FAIL: $name suggestion ($code) not surfaced under $flag"; fail=1; }
+}
+suggest_only_flag "bool-eq-true"  'let z = ok == true\n'  'redundant-bool-literal' '--style:idioms'
+suggest_only_flag "bool-ne-false" 'let z = ok != false\n' 'redundant-bool-literal' '--style:idioms'
+suggest_only_flag "double-neg"    'let z = not not ok\n'  'double-negation'        '--style:idioms'
+suggest_only_flag "float-eq"      'let z = x == 3.14\n'   'float-equality'         '--style:float-equality'
+suggest_only_flag "float-eq-ped"  'let z = x == 3.14\n'   'float-equality'         '--pedantic'
+
 # --- go-var-notype auto-fix ('var x int' -> 'var x: int') ------------------
 for form in 'var x int|var x: int' 'let y string|let y: string' 'const z f|const z: f' 'var p* int|var p*: int'; do
   bad="${form%|*}"; good="${form#*|}"

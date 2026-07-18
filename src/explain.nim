@@ -130,6 +130,31 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "…'. NOT auto-fixed: moving the marker to a pragma is a change you confirm.",
       badExample: "async proc f() = …", goodExample: "proc f() {.async.} = …",
       autofixable: false),
+    CodeInfo(code: "redundant-bool-literal",
+      title: "Comparing to 'true'/'false' is redundant",
+      explanation: "An idiom hint on VALID code (opt-in via '--style:idioms'). " &
+        "'x == true' is just 'x', 'x != false' is just 'x', and 'x == false' / " &
+        "'x != true' are 'not x'. The compare only type-checks when x is already a " &
+        "bool, so the literal adds nothing. NOT auto-fixed: the 'not' forms need a " &
+        "human's eye on operator precedence (wrap the expression if needed).",
+      badExample: "if ok == true:", goodExample: "if ok:", autofixable: false),
+    CodeInfo(code: "double-negation",
+      title: "'not not' is a redundant double negation",
+      explanation: "An idiom hint on VALID code (opt-in via '--style:idioms'). " &
+        "'not not x' negates twice and collapses to the value itself. NOT " &
+        "auto-fixed: on a custom type with a non-involutive 'not' overload the two " &
+        "could in principle differ, so removing them is your call.",
+      badExample: "if not not ready:", goodExample: "if ready:", autofixable: false),
+    CodeInfo(code: "float-equality",
+      title: "Exact float '=='/'!=' is unreliable",
+      explanation: "An idiom hint on VALID code (opt-in via '--style:float-equality' " &
+        "or '--pedantic'). Comparing a float against a literal with '==' / '!=' " &
+        "rarely does what you want — rounding makes exact equality fragile. Compare " &
+        "within a tolerance ('abs(a - b) < 1e-9') or use 'almostEqual'. NOT " &
+        "auto-fixed: the right epsilon is domain-specific, and an exact-value test " &
+        "may genuinely intend it.",
+      badExample: "if x == 0.1:", goodExample: "if abs(x - 0.1) < 1e-9:",
+      autofixable: false),
     CodeInfo(code: "stray-end",
       title: "Stray 'end' — Nim uses indentation",
       explanation: "'end' is a reserved keyword with no statement form (a " &
@@ -424,7 +449,8 @@ const parserFixCodes* = [
   "double-colon", "c-brace-body", "foreign-function-keyword", "go-var-notype",
   "foreign-block-keyword", "foreign-case-block", "do-while-loop",
   "ruby-block-params", "c-block-comment", "foreign-routine-clause",
-  "extends-inheritance", "yield-from", "async-routine-prefix"]
+  "extends-inheritance", "yield-from", "async-routine-prefix",
+  "redundant-bool-literal", "double-negation", "float-equality"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't
