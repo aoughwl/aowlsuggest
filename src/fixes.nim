@@ -101,6 +101,18 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
       result.edit = TextEdit(startOff: a, endOff: b, replacement: "=",
                              label: "change ':=' to '='")
       result.hint = "did you mean '='?"
+  of "arrow-return-type":
+    # `proc f() -> T` → `proc f(): T`. Span is `->`; replace with `:`, absorbing
+    # one preceding space so the result is the idiomatic `(): T`, not `() : T`.
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    let b = lineColToOffset(src, starts, d.line, d.endCol)
+    if b == a + 2 and charAt(src, a) == '-' and charAt(src, a + 1) == '>':
+      var s = a
+      if s > 0 and charAt(src, s - 1) == ' ': dec s
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: s, endOff: b, replacement: ":",
+                             label: "change '->' to a ':' return type")
+      result.hint = "write the return type after ':'"
   of "else-if-not-elif":
     # The span covers `else if` (from the `else` to the end of `if`, same line).
     # Collapse the whole run to `elif`. Guard: it really starts with `else` and

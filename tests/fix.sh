@@ -134,6 +134,16 @@ for form in 'let x := 5|let x = 5' 'const C := 5|const C = 5' 'var v := 5|var v 
   [ "$good" = "$(cat "$WORK/w.nim")" ] || { echo "FAIL: walrus fix '$bad' -> $(cat "$WORK/w.nim")"; fail=1; }
 done
 
+# --- arrow-return-type auto-fix ('proc f() -> T' -> 'proc f(): T') ---------
+printf 'proc g() -> int = 2\n' > "$WORK/ar.nim"
+"$AS" fix --no-config --write "$WORK/ar.nim" >/dev/null 2>&1
+[ "proc g(): int = 2" = "$(cat "$WORK/ar.nim")" ] || { echo "FAIL: arrow-return fix -> $(cat "$WORK/ar.nim")"; fail=1; }
+# a sugar lambda must be left untouched
+printf 'import std/sugar\nlet f = (x: int) -> x + 1\n' > "$WORK/ar2.nim"
+a2="$(cat "$WORK/ar2.nim")"
+"$AS" fix --no-config --write "$WORK/ar2.nim" >/dev/null 2>&1
+[ "$a2" = "$(cat "$WORK/ar2.nim")" ] || { echo "FAIL: arrow fix touched a sugar lambda"; fail=1; }
+
 # --- else-if-not-elif auto-fix ('else if' -> 'elif') -----------------------
 printf 'if a:\n  discard\nelse if b:\n  discard\n' > "$WORK/ei.nim"
 "$AS" fix --no-config --write "$WORK/ei.nim" >/dev/null 2>&1
