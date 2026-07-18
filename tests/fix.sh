@@ -140,6 +140,16 @@ for form in 'let x := 5|let x = 5' 'const C := 5|const C = 5' 'var v := 5|var v 
   [ "$good" = "$(cat "$WORK/w.nim")" ] || { echo "FAIL: walrus fix '$bad' -> $(cat "$WORK/w.nim")"; fail=1; }
 done
 
+# --- c-block-comment auto-fix ('/* … */' -> '#[ … ]#') --------------------
+printf '/* a comment */\nlet x = 5\n' > "$WORK/bc.nim"
+"$AS" fix --no-config --write "$WORK/bc.nim" >/dev/null 2>&1
+[ "#[ a comment ]#" = "$(sed -n '1p' "$WORK/bc.nim")" ] || { echo "FAIL: c-block fix -> $(sed -n '1p' "$WORK/bc.nim")"; fail=1; }
+"$AS" check --no-config "$WORK/bc.nim" >/dev/null 2>&1 || { echo "FAIL: c-block fix left an error"; fail=1; }
+# inline form
+printf 'let x = 5 /* c */\n' > "$WORK/bc2.nim"
+"$AS" fix --no-config --write "$WORK/bc2.nim" >/dev/null 2>&1
+[ "let x = 5 #[ c ]#" = "$(cat "$WORK/bc2.nim")" ] || { echo "FAIL: c-block inline fix -> $(cat "$WORK/bc2.nim")"; fail=1; }
+
 # --- mut-not-a-keyword auto-fix ('let/var/const mut x' -> 'var x') ---------
 for form in 'let mut x = 5|var x = 5' 'var mut y = 1|var y = 1' 'const mut z = 2|var z = 2'; do
   bad="${form%|*}"; good="${form#*|}"
@@ -178,7 +188,6 @@ suggest_only() {  # name | before(printf %b) | expected-code
 suggest_only "switch-block" 'switch x {\n  discard\n}\n' 'foreign-case-block'
 suggest_only "do-while"     'do {\n  discard\n} while (x)\n' 'do-while-loop'
 suggest_only "ruby-do"      'xs.each do |i|\n  echo i\n' 'ruby-block-params'
-suggest_only "c-block-comment" '/* a comment */\nlet x = 5\n' 'c-block-comment'
 suggest_only "throws-clause" 'proc f() throws IOError = discard\n' 'foreign-routine-clause'
 suggest_only "where-clause"  'proc f[T](x: T) where T: int = discard\n' 'foreign-routine-clause'
 suggest_only "extends"       'type Dog extends Animal = object\n' 'extends-inheritance'

@@ -93,11 +93,11 @@ proc knowledgeBase*(): seq[CodeInfo] =
     CodeInfo(code: "c-block-comment",
       title: "C-style '/* … */' comment — Nim uses '#[ … ]#'",
       explanation: "Nim's block comment is '#[ … ]#' (and a line comment is '#'), " &
-        "not the C/C++/Java/JS '/* … */'. NOT auto-fixed: rewriting the delimiters " &
-        "(and checking the body doesn't itself close the block) is a change you " &
-        "should confirm.",
+        "not the C/C++/Java/JS '/* … */'. aowlsuggest swaps the delimiters " &
+        "('/* x */' becomes '#[ x ]#'); if the body itself would close the block " &
+        "the verify loop discards the edit and it stays a suggestion.",
       badExample: "/* a comment */", goodExample: "#[ a comment ]#",
-      autofixable: false),
+      autofixable: true),
     CodeInfo(code: "foreign-routine-clause",
       title: "'throws' / 'where' routine clause — Nim uses a pragma / '[T: …]'",
       explanation: "Nim declares a routine's raised effects with a pragma " &

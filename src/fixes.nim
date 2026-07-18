@@ -140,6 +140,27 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
       result.edit = TextEdit(startOff: s, endOff: a, replacement: ": ",
                              label: "insert ':' before the type")
       result.hint = "a typed binding is 'name: Type'"
+  of "c-block-comment":
+    # `/* … */` → `#[ … ]#` (swap the block-comment delimiters). The span is `/*`;
+    # block comments don't nest, so the first `*/` closes it. If the body itself
+    # holds a `]#`, the rewrite won't parse and the verify loop discards it (falling
+    # back to a suggestion). An unterminated `/*` has no `*/` and stays a suggestion.
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    if charAt(src, a) == '/' and charAt(src, a + 1) == '*':
+      var i = a + 2
+      var close = -1
+      while i + 1 < src.len:
+        if src[i] == '*' and src[i + 1] == '/':
+          close = i
+          break
+        inc i
+      if close > a:
+        let inner = substr(src, a + 2, close - 1)
+        result.kind = fkAuto
+        result.edit = TextEdit(startOff: a, endOff: close + 2,
+                               replacement: "#[" & inner & "]#",
+                               label: "change '/* … */' to '#[ … ]#'")
+        result.hint = "use '#[ … ]#' for a block comment"
   of "angle-bracket-generics":
     # `proc f<T>(…)` → `proc f[T](…)`. The span is the `<`; find its matching `>`
     # (tracking `<`/`>` nesting for `<A<B>>`) and rewrite `<…>` to `[…]`. Bails at
