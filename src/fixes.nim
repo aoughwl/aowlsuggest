@@ -101,6 +101,33 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
       result.edit = TextEdit(startOff: a, endOff: b, replacement: "=",
                              label: "change ':=' to '='")
       result.hint = "did you mean '='?"
+  of "angle-bracket-generics":
+    # `proc f<T>(…)` → `proc f[T](…)`. The span is the `<`; find its matching `>`
+    # (tracking `<`/`>` nesting for `<A<B>>`) and rewrite `<…>` to `[…]`. Bails at
+    # a newline; the verify loop discards it if the span was wrong.
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    if charAt(src, a) == '<':
+      var depth = 0
+      var i = a
+      var close = -1
+      while i < src.len:
+        let c = src[i]
+        if c == '<': inc depth
+        elif c == '>':
+          dec depth
+          if depth == 0:
+            close = i
+            break
+        elif c == '\n':
+          break
+        inc i
+      if close > a:
+        let inner = substr(src, a + 1, close - 1)
+        result.kind = fkAuto
+        result.edit = TextEdit(startOff: a, endOff: close + 1,
+                               replacement: "[" & inner & "]",
+                               label: "change '<…>' to '[…]'")
+        result.hint = "use '[T]' for generics"
   of "arrow-return-type":
     # `proc f() -> T` → `proc f(): T`. Span is `->`; replace with `:`, absorbing
     # one preceding space so the result is the idiomatic `(): T`, not `() : T`.

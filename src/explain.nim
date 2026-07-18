@@ -43,6 +43,12 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "`std.vector`) or a single ':' (a mistyped annotation) — only you know " &
         "which, so it is offered as a suggestion.",
       badExample: "std::vector", goodExample: "std.vector", autofixable: false),
+    CodeInfo(code: "angle-bracket-generics",
+      title: "'<T>' angle-bracket generics — Nim uses '[T]'",
+      explanation: "Nim writes generic parameters in square brackets, not the " &
+        "C++/Java/Rust/TS angle brackets. aowlsuggest rewrites 'proc f<T>()' to " &
+        "'proc f[T]()' (finding the matching '>').",
+      badExample: "proc f<T>()", goodExample: "proc f[T]()", autofixable: true),
     CodeInfo(code: "arrow-return-type",
       title: "'->' return-type arrow — Nim uses ': type'",
       explanation: "Nim declares a routine's return type after a colon, not " &

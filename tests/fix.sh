@@ -134,6 +134,14 @@ for form in 'let x := 5|let x = 5' 'const C := 5|const C = 5' 'var v := 5|var v 
   [ "$good" = "$(cat "$WORK/w.nim")" ] || { echo "FAIL: walrus fix '$bad' -> $(cat "$WORK/w.nim")"; fail=1; }
 done
 
+# --- angle-bracket-generics auto-fix ('proc f<T>()' -> 'proc f[T]()') ------
+printf 'proc f<T>(x: T) = discard\n' > "$WORK/ag.nim"
+"$AS" fix --no-config --write "$WORK/ag.nim" >/dev/null 2>&1
+[ "proc f[T](x: T) = discard" = "$(cat "$WORK/ag.nim")" ] || { echo "FAIL: angle fix -> $(cat "$WORK/ag.nim")"; fail=1; }
+printf 'proc g<T, U>(a: T, b: U) = discard\n' > "$WORK/ag2.nim"
+"$AS" fix --no-config --write "$WORK/ag2.nim" >/dev/null 2>&1
+[ "proc g[T, U](a: T, b: U) = discard" = "$(cat "$WORK/ag2.nim")" ] || { echo "FAIL: multi-param angle fix -> $(cat "$WORK/ag2.nim")"; fail=1; }
+
 # --- arrow-return-type auto-fix ('proc f() -> T' -> 'proc f(): T') ---------
 printf 'proc g() -> int = 2\n' > "$WORK/ar.nim"
 "$AS" fix --no-config --write "$WORK/ar.nim" >/dev/null 2>&1
