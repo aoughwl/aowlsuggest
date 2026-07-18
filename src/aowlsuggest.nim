@@ -67,6 +67,7 @@ proc styleFlag(cat: string; ok: var bool): string =
   of "lf", "newline-lf": "--newline:lf"
   of "crlf", "newline-crlf": "--newline:crlf"
   of "bom": "--bom:reject"
+  of "c-operators", "c-ops": "--c-operators:warn"
   of "indent-consistency", "indent": "--indent-consistency"
   else:
     ok = false
@@ -482,7 +483,7 @@ proc usage(): int =
   write stderr, "  --pedantic       enable trailing-whitespace + final-newline + bom\n"
   write stderr, "  --style:CAT      enable one policy; repeatable. CAT is one of:\n"
   write stderr, "                     trailing-whitespace  final-newline  bom\n"
-  write stderr, "                     lf | crlf (EOL convention)  indent-consistency\n"
+  write stderr, "                     lf | crlf (EOL convention)  c-operators  indent-consistency\n"
   write stderr, "  --indent-width:N advisory: warn when indent isn't a multiple of N\n"
   write stderr, "config:\n"
   write stderr, "  a project `.aowlsuggest` (found by walking up from the cwd) sets\n"
@@ -595,7 +596,7 @@ proc main(): int =
       let f = styleFlag(cat, ok)
       if not ok:
         write stderr, "aowlsuggest: unknown --style category: " & cat &
-          " (trailing-whitespace, final-newline, lf, crlf, bom, indent-consistency)\n"
+          " (trailing-whitespace, final-newline, lf, crlf, bom, c-operators, indent-consistency)\n"
         return 2
       addFlag(opts.checkFlags, f)
     elif startsWith(a, "--indent-width:"):

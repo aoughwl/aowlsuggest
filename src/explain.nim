@@ -36,6 +36,13 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "followed directly by ':'. Writing 'else if' (a C/Python habit) is " &
         "always malformed. aowlsuggest collapses it to 'elif'.",
       badExample: "else if b:", goodExample: "elif b:", autofixable: true),
+    CodeInfo(code: "c-style-operator",
+      title: "C boolean operator '&&' / '||' — use 'and' / 'or'",
+      explanation: "Nim spells boolean and/or as the words 'and'/'or', not " &
+        "'&&'/'||'. Opt in with --style:c-operators. NOT auto-fixed: '&&'/'||' " &
+        "are definable operators and 'and'/'or' bind at a different precedence, " &
+        "so the rewrite is offered as a suggestion for you to confirm.",
+      badExample: "if a && b:", goodExample: "if a and b:", autofixable: false),
     CodeInfo(code: "mismatched-bracket",
       title: "Closing bracket does not match its opener",
       explanation: "A ')' / ']' / '}' closes a different kind of bracket than " &
@@ -274,7 +281,7 @@ const parserFixCodes* = [
   "assignment-in-condition", "expected-colon", "missing-routine-equals",
   "missing-type-equals", "expected-condition", "expected-in", "of-without-value",
   "expected-indented-body", "func-in-type-description", "empty-variant-branch",
-  "enum-member-not-identifier", "invalid-number"]
+  "enum-member-not-identifier", "invalid-number", "c-style-operator"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't

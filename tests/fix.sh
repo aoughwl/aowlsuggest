@@ -146,6 +146,18 @@ grep -q 'help: add the closing backtick' <<<"$btout" || { echo "FAIL: no backtic
 "$AS" fix --no-config --write "$WORK/bt.nim" >/dev/null 2>&1
 [ "$(printf 'let `a = 1\n')" = "$(cat "$WORK/bt.nim")" ] || { echo "FAIL: backtick was wrongly auto-applied"; fail=1; }
 
+# --- c-style-operator: opt-in, SUGGESTION-only (&&/|| are definable) -------
+printf 'if a && b:\n  discard\n' > "$WORK/co.nim"
+# off by default
+grep -q 'c-style-operator' <<<"$("$AS" check --no-config "$WORK/co.nim" 2>&1)" && {
+  echo "FAIL: c-style-operator must be OFF by default"; fail=1; }
+# opt-in surfaces a suggestion
+coout="$("$AS" fix --no-config --style:c-operators "$WORK/co.nim" 2>&1)"
+grep -q "help: use 'and'" <<<"$coout" || { echo "FAIL: no c-operators suggestion"; fail=1; }
+# never auto-applied (definable operator + precedence): file untouched by --write
+"$AS" fix --no-config --style:c-operators --write "$WORK/co.nim" >/dev/null 2>&1
+grep -q '&&' "$WORK/co.nim" || { echo "FAIL: c-style-operator was wrongly auto-applied"; fail=1; }
+
 # --- KB fallback suggestion for a bare value-error -------------------------
 # aowlparser attaches no `fix` to invalid-escape-sequence; aowlsuggest supplies a
 # knowledge-base hint so the diagnostic still tells you what to do.
