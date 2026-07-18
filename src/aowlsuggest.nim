@@ -40,6 +40,7 @@ type
     maxWarnings: int    ## lint: fail if warnings exceed this; -1 = unlimited
     quiet: bool         ## suppress warning/hint DISPLAY in text output (still counted)
     checkMode: bool     ## fix --check: report (don't apply) and exit nonzero if unclean
+    rules: seq[(string, string)] ## per-code severity overrides (off|hint|warning|error)
 
 proc afterColon(s: string): string =
   var i = 0
@@ -75,6 +76,23 @@ proc styleFlag(cat: string; ok: var bool): string =
   else:
     ok = false
     ""
+
+proc flagForCode(code: string): string =
+  ## The opt-in aowlparser flag that must be ON for `code` to be emitted at all.
+  ## "" for codes the parser always emits (an enabled `[rules]` entry for one of
+  ## those needs no extra flag). This is what lets a `[rules]` opinion turn on the
+  ## check it names — the config is the single dial for a project's opinions.
+  case code
+  of "redundant-bool-literal", "double-negation", "not-in-precedence",
+     "not-compare-precedence", "simplify-boolean-return": "--idioms:warn"
+  of "float-equality": "--float-equality:warn"
+  of "c-style-operator": "--c-operators:warn"
+  of "redundant-semicolon": "--semicolons:warn"
+  of "indent-consistency": "--indent-consistency"
+  of "trailing-whitespace": "--trailing-whitespace:warn"
+  of "missing-final-newline": "--final-newline:require"
+  of "bom-rejected": "--bom:reject"
+  else: ""
 
 proc addFlag(flags: var string; f: string) =
   ## Append a flag once (dedup keeps the command tidy; repeats are harmless).
@@ -152,6 +170,26 @@ proc maybeSuppress(opts: Options; src: string; diags: seq[Diagnostic]): seq[Diag
     result = f.kept
   else:
     result = diags
+
+proc applyRules(opts: Options; diags: seq[Diagnostic]): seq[Diagnostic] =
+  ## Apply per-code `[rules]` severity overrides: `off` drops the diagnostic,
+  ## `hint`/`warning`/`error` re-stamp its severity (so a project can promote an
+  ## advisory to a CI-failing error, or silence one it disagrees with). Codes with
+  ## no rule pass through unchanged. Last rule for a code wins.
+  if opts.rules.len == 0: return diags
+  result = @[]
+  for d in diags:
+    var level = ""
+    for r in opts.rules:
+      if r[0] == d.code: level = r[1]     # last wins
+    var d2 = d
+    case level
+    of "off": continue                    # dropped
+    of "hint": d2.severity = sevHint
+    of "warning": d2.severity = sevWarn
+    of "error": d2.severity = sevError
+    else: discard                         # no rule for this code
+    result.add d2
 
 # ── fix ──────────────────────────────────────────────────────────────────────
 
@@ -289,7 +327,7 @@ proc cmdLint(opts: Options; paths: seq[string]): int =
       allDiags.add @[]
       allSrcs.add ""
       continue
-    var diags = res.diags
+    var diags = applyRules(opts, res.diags)
     if readOk:
       let before = diags.len
       diags = maybeSuppress(opts, src, diags)
@@ -372,7 +410,7 @@ proc cmdCheck(opts: Options; file: string): int =
   if not res.ok:
     write stderr, "aowlsuggest: " & res.error & "\n"
     return 2
-  let diags = maybeSuppress(opts, src, res.diags)
+  let diags = maybeSuppress(opts, src, applyRules(opts, res.diags))
   var errCount = 0
   for i in 0 ..< diags.len:
     if diags[i].severity == sevError: inc errCount
@@ -409,8 +447,12 @@ proc cmdLsp(opts: Options; file: string): int =
   if not res.ok:
     write stderr, "aowlsuggest: " & res.error & "\n"
     return 2
-  write stdout, lspReportJson(displayName, src, res.diags) & "\n"
-  if res.errorCount > 0: return 1
+  let diags = maybeSuppress(opts, src, applyRules(opts, res.diags))
+  var errCount = 0
+  for i in 0 ..< diags.len:
+    if diags[i].severity == sevError: inc errCount
+  write stdout, lspReportJson(displayName, src, diags) & "\n"
+  if errCount > 0: return 1
   return 0
 
 # ── explain ──────────────────────────────────────────────────────────────────
@@ -489,9 +531,13 @@ proc usage(): int =
   write stderr, "                     lf | crlf (EOL convention)  c-operators  semicolons\n"
   write stderr, "                     idioms (== true / not not)  float-equality  indent-consistency\n"
   write stderr, "  --indent-width:N advisory: warn when indent isn't a multiple of N\n"
+  write stderr, "  --rule:CODE=LEVEL per-code severity (off|hint|warning|error); repeatable.\n"
+  write stderr, "                   Enables the check it names; overrides config. Same as a\n"
+  write stderr, "                   `[rules]` entry in `.aowlsuggest`.\n"
   write stderr, "config:\n"
   write stderr, "  a project `.aowlsuggest` (found by walking up from the cwd) sets\n"
-  write stderr, "  defaults: pedantic, style, indent-width, exclude, suppress, parser.\n"
+  write stderr, "  defaults: pedantic, style, indent-width, exclude, suppress, parser,\n"
+  write stderr, "  and a [rules] section of per-code severity overrides.\n"
   write stderr, "  --config:PATH    use a specific config file\n"
   write stderr, "  --no-config      ignore any project config\n"
   return 1
@@ -524,6 +570,12 @@ proc applyConfig(opts: var Options; c: ProjectConfig) =
   for g in c.excludes: opts.excludes.add g
   if c.suppressSet: opts.suppress = c.suppress
   if c.parserBin.len > 0: opts.parserBin = c.parserBin
+  # Per-code opinion overrides. Recording each rule drives applyRules; enabling a
+  # code (anything but `off`) that is gated behind an opt-in check ALSO turns that
+  # check on, so `[rules]` is a one-stop dial — you name a code and it lights up.
+  for r in c.rules:
+    opts.rules.add r
+    if r[1] != "off": addFlag(opts.checkFlags, flagForCode(r[0]))
   for w in c.warnings:
     write stderr, "aowlsuggest: " & c.path & ": " & w & "\n"
 
@@ -611,6 +663,24 @@ proc main(): int =
         write stderr, "aowlsuggest: --indent-width expects a number\n"
         return 2
       addFlag(opts.checkFlags, "--indent-width:" & n)
+    elif startsWith(a, "--rule:"):
+      # `--rule:code=level` — a per-code severity override from the CLI (the same
+      # dial as a `[rules]` config entry, for one-off / CI use). Overrides config
+      # since it is applied after it.
+      let spec = afterColon(a)
+      let eqp = find(spec, '=')
+      if eqp < 0:
+        write stderr, "aowlsuggest: --rule expects code=level (off|hint|warning|error)\n"
+        return 2
+      let rcode = substr(spec, 0, eqp - 1)
+      let rlevel = toLowerAscii(substr(spec, eqp + 1, spec.len - 1))
+      case rlevel
+      of "off", "hint", "warning", "error":
+        opts.rules.add (rcode, rlevel)
+        if rlevel != "off": addFlag(opts.checkFlags, flagForCode(rcode))
+      else:
+        write stderr, "aowlsuggest: --rule level must be off|hint|warning|error\n"
+        return 2
     else: positional.add a
   if positional.len < 1: return usage()
   let action = positional[0]

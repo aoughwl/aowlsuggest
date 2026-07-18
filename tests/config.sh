@@ -82,6 +82,26 @@ printf 'let a = 1\r\n' > "$work/proj/crlf.nim"
 out="$(cd "$work/proj" && "$AS" check --style:lf crlf.nim 2>/dev/null)"
 grep -q 'line-ending' <<<"$out" || die "CLI --style:lf did not extend config: $out"
 
+echo "== [rules] per-code opinion overrides =="
+mkdir -p "$work/rules"
+printf 'let z = ok == true\nlet w = x == 3.14\n' > "$work/rules/r.nim"
+# naming a gated code in [rules] both ENABLES the check and sets its severity
+printf '[rules]\nredundant-bool-literal = error\nfloat-equality = off\n' > "$work/rules/.aowlsuggest"
+out="$(cd "$work/rules" && "$AS" check r.nim 2>/dev/null)"; rc=$?
+grep -q 'error\[redundant-bool-literal\]' <<<"$out" || die "[rules] did not enable+promote redundant-bool-literal: $out"
+grep -q 'float-equality' <<<"$out" && die "[rules] float-equality=off did not silence it: $out"
+[ "$rc" = "1" ] || die "[rules] promotion to error should exit 1 (got $rc)"
+# off silences without failing
+printf '[rules]\nredundant-bool-literal = off\n' > "$work/rules/.aowlsuggest"
+out="$(cd "$work/rules" && "$AS" check r.nim 2>/dev/null)"; rc=$?
+grep -q 'redundant-bool-literal' <<<"$out" && die "[rules] off did not silence: $out"
+# a CLI --rule overrides config and also enables the gated check
+out="$(cd "$work/rules" && "$AS" check --no-config --rule:redundant-bool-literal=warning r.nim 2>/dev/null)"
+grep -q 'warning\[redundant-bool-literal\]' <<<"$out" || die "--rule did not enable+set severity: $out"
+# a bad level is rejected
+( cd "$work/rules" && "$AS" check --rule:redundant-bool-literal=loud r.nim >/dev/null 2>&1 )
+[ "$?" = "2" ] || die "--rule with a bad level should exit 2"
+
 if [ "$fail" -eq 0 ]; then
   echo "config: PASS — discovery, application, precedence, and graceful degradation"
 else

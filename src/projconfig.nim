@@ -19,6 +19,16 @@
 ##   exclude      = tests/*, vendor/*
 ##   suppress     = false
 ##   parser       = /opt/aowlparser/bin/aowlparser
+##
+##   # Per-code opinion overrides. `[rules]` switches to a section where each
+##   # `code = level` sets that diagnostic's severity — off | hint | warning |
+##   # error. Naming a code that is gated behind an opt-in check (an idiom lint,
+##   # a style policy) ALSO turns that check on, so `[rules]` is the single place
+##   # a project dials its opinions up or down.
+##   [rules]
+##   redundant-bool-literal = warning   # I want these to fail CI
+##   float-equality         = off       # I do exact float tests on purpose
+##   double-negation        = hint
 
 import std/[syncio, strutils, os, dirs]
 
@@ -33,12 +43,13 @@ type
     suppress*: bool
     suppressSet*: bool      ## whether `suppress` was specified
     parserBin*: string      ## "" when unset
+    rules*: seq[(string, string)] ## per-code severity: (code, off|hint|warning|error)
     warnings*: seq[string]  ## non-fatal parse issues (unknown keys, bad bools)
 
 proc emptyConfig(found: bool; path: string): ProjectConfig =
   ProjectConfig(found: found, path: path, pedantic: false, styles: @[],
     indentWidth: "", excludes: @[], suppress: true, suppressSet: false,
-    parserBin: "", warnings: @[])
+    parserBin: "", rules: @[], warnings: @[])
 
 proc indexOf(s: string; c: char; startAt = 0): int =
   var i = startAt
@@ -115,15 +126,29 @@ proc parseConfigText*(text: string): ProjectConfig =
   ## Parse `.aowlsuggest` content. Unknown keys / malformed values are collected
   ## as `warnings` (never fatal) so a typo degrades gracefully.
   result = emptyConfig(true, "")
+  var section = ""
   for rawLine in splitLines(text):
     let line = strip(stripComment(rawLine))
     if line.len == 0: continue
+    # a `[section]` header switches parsing mode (currently only `[rules]`).
+    if line.len >= 2 and line[0] == '[' and line[line.len - 1] == ']':
+      section = toLowerAscii(strip(substr(line, 1, line.len - 2)))
+      continue
     let eq = indexOf(line, '=')
     if eq < 0:
       result.warnings.add "ignored line (no '='): " & rawLine
       continue
     let key = strip(substr(line, 0, eq - 1))
     let val = strip(substr(line, eq + 1, line.len - 1))
+    if section == "rules":
+      # `code = level` — a per-code severity override.
+      case toLowerAscii(val)
+      of "off", "hint", "warning", "error":
+        result.rules.add (key, toLowerAscii(val))
+      else:
+        result.warnings.add "bad rule level for '" & key & "' (want off|hint|" &
+          "warning|error): " & val
+      continue
     case toLowerAscii(key)
     of "pedantic":
       var ok = false
