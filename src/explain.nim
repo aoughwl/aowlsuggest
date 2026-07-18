@@ -43,6 +43,12 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "`std.vector`) or a single ':' (a mistyped annotation) — only you know " &
         "which, so it is offered as a suggestion.",
       badExample: "std::vector", goodExample: "std.vector", autofixable: false),
+    CodeInfo(code: "stray-end",
+      title: "Stray 'end' — Nim uses indentation",
+      explanation: "'end' is a reserved keyword with no statement form (a " &
+        "Ruby/Pascal/Lua block terminator). Nim delimits blocks by indentation, " &
+        "so aowlsuggest removes the stray 'end'.",
+      badExample: "…block…\nend", goodExample: "…block…", autofixable: true),
     CodeInfo(code: "angle-bracket-generics",
       title: "'<T>' angle-bracket generics — Nim uses '[T]'",
       explanation: "Nim writes generic parameters in square brackets, not the " &

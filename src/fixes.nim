@@ -101,6 +101,16 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
       result.edit = TextEdit(startOff: a, endOff: b, replacement: "=",
                              label: "change ':=' to '='")
       result.hint = "did you mean '='?"
+  of "stray-end":
+    # Delete the stray `end` keyword (Nim uses indentation, not `end`).
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    let b = lineColToOffset(src, starts, d.line, d.endCol)
+    if b > a and charAt(src, a) == 'e' and charAt(src, a + 1) == 'n' and
+       charAt(src, a + 2) == 'd':
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: a, endOff: b, replacement: "",
+                             label: "remove the 'end'")
+      result.hint = "remove the 'end' (Nim uses indentation)"
   of "angle-bracket-generics":
     # `proc f<T>(…)` → `proc f[T](…)`. The span is the `<`; find its matching `>`
     # (tracking `<`/`>` nesting for `<A<B>>`) and rewrite `<…>` to `[…]`. Bails at

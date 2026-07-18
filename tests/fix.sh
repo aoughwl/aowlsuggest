@@ -126,6 +126,12 @@ b2="$(cat "$WORK/cb2.nim")"
 "$AS" fix --no-config --write "$WORK/cb2.nim" >/dev/null 2>&1
 [ "$b2" = "$(cat "$WORK/cb2.nim")" ] || { echo "FAIL: comparison-in-binding fix touched a valid comparison"; fail=1; }
 
+# --- stray-end auto-fix (remove a Ruby/Pascal/Lua 'end') -------------------
+printf 'proc f() =\n  discard\nend\n' > "$WORK/se.nim"
+"$AS" fix --no-config --write "$WORK/se.nim" >/dev/null 2>&1
+grep -qx 'end' "$WORK/se.nim" && { echo "FAIL: stray 'end' not removed"; fail=1; }
+"$AS" check --no-config "$WORK/se.nim" >/dev/null 2>&1 || { echo "FAIL: stray-end fix left an error"; fail=1; }
+
 # --- walrus-in-binding auto-fix (':=' -> '=') ------------------------------
 for form in 'let x := 5|let x = 5' 'const C := 5|const C = 5' 'var v := 5|var v = 5'; do
   bad="${form%|*}"; good="${form#*|}"
