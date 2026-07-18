@@ -211,6 +211,7 @@ suggest_only_flag "bool-eq-true"  'let z = ok == true\n'  'redundant-bool-litera
 suggest_only_flag "bool-ne-false" 'let z = ok != false\n' 'redundant-bool-literal' '--style:idioms'
 suggest_only_flag "double-neg"    'let z = not not ok\n'  'double-negation'        '--style:idioms'
 suggest_only_flag "not-in-prec"   'let z = not k in seen\n' 'not-in-precedence'     '--style:idioms'
+suggest_only_flag "not-cmp-prec"  'let z = not a == b\n'    'not-compare-precedence' '--style:idioms'
 suggest_only_flag "float-eq"      'let z = x == 3.14\n'   'float-equality'         '--style:float-equality'
 suggest_only_flag "float-eq-ped"  'let z = x == 3.14\n'   'float-equality'         '--pedantic'
 

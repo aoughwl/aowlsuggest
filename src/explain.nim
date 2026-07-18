@@ -154,6 +154,14 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "is intended, only you know, so the rewrite is yours.",
       badExample: "if not k in seen:", goodExample: "if k notin seen:",
       autofixable: false),
+    CodeInfo(code: "not-compare-precedence",
+      title: "'not x == y' means '(not x) == y' — likely 'x != y'",
+      explanation: "An idiom hint on VALID code (opt-in via '--style:idioms'). " &
+        "Unary 'not' binds tighter than '=='/'!=', so 'not x == y' parses as " &
+        "'(not x) == y'. Someone writing that almost always means 'not (x == y)' — " &
+        "the opposite comparison, 'x != y' (and 'not x != y' means 'x == y'). NOT " &
+        "auto-fixed: comparing '(not x)' against a bool is occasionally intended.",
+      badExample: "if not a == b:", goodExample: "if a != b:", autofixable: false),
     CodeInfo(code: "float-equality",
       title: "Exact float '=='/'!=' is unreliable",
       explanation: "An idiom hint on VALID code (opt-in via '--style:float-equality' " &
@@ -460,7 +468,7 @@ const parserFixCodes* = [
   "ruby-block-params", "c-block-comment", "foreign-routine-clause",
   "extends-inheritance", "yield-from", "async-routine-prefix",
   "redundant-bool-literal", "double-negation", "not-in-precedence",
-  "float-equality"]
+  "not-compare-precedence", "float-equality"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't
