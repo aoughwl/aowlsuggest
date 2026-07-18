@@ -69,6 +69,16 @@ fpa="$("$AS" check --no-config --format:sarif "$WORK/fp_a.nim" | python3 -c 'imp
 fpb="$("$AS" check --no-config --format:sarif "$WORK/fp_b.nim" | python3 -c 'import json,sys;print(json.load(sys.stdin)["runs"][0]["results"][0]["partialFingerprints"]["primaryLocationLineHash"])')"
 [ -n "$fpa" ] && [ "$fpa" = "$fpb" ] || { echo "FAIL: fingerprint not stable across line shift ($fpa vs $fpb)"; fail=1; }
 
+# --- fix --check (gofmt -l style) ------------------------------------------
+printf 'if c = 5:\n  discard\n' > "$WORK/chk_dirty.nim"
+printf 'let okk = 1\n' > "$WORK/chk_clean.nim"
+before="$(cat "$WORK/chk_dirty.nim")"
+"$AS" fix --no-config --check "$WORK/chk_dirty.nim" >/dev/null 2>&1 && {
+  echo "FAIL: fix --check should exit nonzero on a fixable file"; fail=1; }
+[ "$before" = "$(cat "$WORK/chk_dirty.nim")" ] || { echo "FAIL: fix --check modified the file"; fail=1; }
+"$AS" fix --no-config --check "$WORK/chk_clean.nim" >/dev/null 2>&1 || {
+  echo "FAIL: fix --check should exit 0 on a clean file"; fail=1; }
+
 # --- CI gates: --max-warnings + --quiet ------------------------------------
 printf 'let ww = 1   \n' > "$WORK/warn.nim"   # one trailing-whitespace warning (pedantic)
 "$AS" lint --no-config --pedantic --max-warnings:0 "$WORK/warn.nim" >/dev/null 2>&1 && {

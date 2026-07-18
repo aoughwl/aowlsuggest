@@ -105,7 +105,10 @@ guarded, and **verified** before it is kept:
 
 Everything else with a repair hint is surfaced as a **suggestion** (needs human
 judgement), never auto-applied. `--dry-run` (the default) prints a unified diff;
-`--write` applies it. Directories and cascades are handled in one pass.
+`--write` applies it; `--check` (gofmt -l / prettier --check style) writes
+nothing and just **exits non-zero if any fix is available** — the CI gate for
+"this code is already clean" (combine with `--pedantic` to enforce style too).
+Directories and cascades are handled in one pass.
 
 The four *(style)* fixes only fire when the matching policy is opted in (see
 **Style / lint policies** below); each touches nothing but insignificant

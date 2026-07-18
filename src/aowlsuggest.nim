@@ -39,6 +39,7 @@ type
     checkFlags: string  ## opt-in aowlparser lint flags (see `--style` / `--pedantic`)
     maxWarnings: int    ## lint: fail if warnings exceed this; -1 = unlimited
     quiet: bool         ## suppress warning/hint DISPLAY in text output (still counted)
+    checkMode: bool     ## fix --check: report (don't apply) and exit nonzero if unclean
 
 proc afterColon(s: string): string =
   var i = 0
@@ -172,6 +173,13 @@ proc fixOne(opts: Options; file: string; useStdin: bool; displayName: string): i
     let plan = planFix(d, outcome.fixed, starts)
     if plan.kind == fkSuggestion:
       suggestions.add diagLine(displayName, d, opts.color)
+  if opts.checkMode:
+    # gofmt -l / prettier --check: report, never write. Exit nonzero if unclean.
+    if outcome.changed:
+      write stdout, displayName & ": " & $outcome.applied.len &
+        " fix(es) available (run 'fix --write' to apply)\n"
+      return 1
+    return 0
   if useStdin:
     write stdout, outcome.fixed
     write stderr, $outcome.applied.len & " fix(es) applied\n"
@@ -221,9 +229,18 @@ proc cmdFix(opts: Options; paths: seq[string]): int =
     write stderr, "aowlsuggest: no .nim files in the given paths\n"
     return 2
   var worstRc = 0
+  var unclean = 0
   for i in 0 ..< files.len:
     let rc = fixOne(opts, files[i], false, files[i])
+    if opts.checkMode and rc == 1: inc unclean
     if rc > worstRc: worstRc = rc
+  if opts.checkMode:
+    if unclean == 0 and worstRc < 2:
+      write stdout, $files.len & " file(s) checked, all clean\n"
+    elif unclean > 0:
+      write stdout, "\n" & $unclean & " of " & $files.len &
+        " file(s) have auto-fixable issues (run 'fix --write' to apply)\n"
+    return worstRc   # 2 if any file errored, else 1 if any unclean, else 0
   if opts.doWrite and files.len > 1:
     write stdout, "\n" & $files.len & " file(s) processed\n"
   return worstRc
@@ -446,6 +463,7 @@ proc usage(): int =
   write stderr, "  --exclude:GLOB   skip paths matching GLOB (repeatable; * and ?)\n"
   write stderr, "  --write          (fix) write changes back to the file\n"
   write stderr, "  --dry-run        (fix) show a unified diff without writing (default)\n"
+  write stderr, "  --check          (fix) report only; exit nonzero if fixes are available (CI)\n"
   write stderr, "  --format:FMT     text (default), json, or sarif\n"
   write stderr, "  --stats          (lint) also print a per-code count summary\n"
   write stderr, "  --max-warnings:N (lint) exit non-zero if warnings exceed N\n"
@@ -501,7 +519,8 @@ proc main(): int =
   var opts = Options(parserBin: defaultParserBin(), excludes: @[],
                      suppress: true, format: "text", stats: false,
                      doWrite: false, useStdin: false, filename: "stdin",
-                     color: false, checkFlags: "", maxWarnings: -1, quiet: false)
+                     color: false, checkFlags: "", maxWarnings: -1, quiet: false,
+                     checkMode: false)
   var positional: seq[string] = @[]
   let cli = commandLineParams()
   # Discover & apply the project `.aowlsuggest` FIRST (CLI flags override it).
@@ -536,6 +555,7 @@ proc main(): int =
     let a = cli[ci]
     if a == "--write": opts.doWrite = true
     elif a == "--dry-run": opts.doWrite = false
+    elif a == "--check": opts.checkMode = true
     elif a == "--stdin": opts.useStdin = true
     elif a == "--stats": opts.stats = true
     elif a == "--color": opts.color = true
