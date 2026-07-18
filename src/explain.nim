@@ -172,6 +172,20 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "block and re-indenting the condition is a multi-line rewrite you confirm.",
       badExample: "if c:\n  return true\nelse:\n  return false",
       goodExample: "return c", autofixable: false),
+    CodeInfo(code: "nil-comparison",
+      title: "'x == nil' — some projects prefer 'x.isNil'",
+      explanation: "An OPINION, off by default — enable it per project in a " &
+        "'.aowlsuggest' [rules] section (or '--rule:nil-comparison=…'). Nim can " &
+        "write a nil check as 'x.isNil' / 'not x.isNil' instead of 'x == nil' / " &
+        "'x != nil'; neither is wrong, so this only fires where a project opts in.",
+      badExample: "if p == nil:", goodExample: "if p.isNil:", autofixable: false),
+    CodeInfo(code: "yoda-condition",
+      title: "A literal on the left of '==' (a 'yoda' compare)",
+      explanation: "An OPINION, off by default — enable it per project in a " &
+        "'.aowlsuggest' [rules] section (or '--rule:yoda-condition=…'). Writing " &
+        "'0 == x' guards against '=' typos in C; Nim has no such foot-gun (a bare " &
+        "'=' isn't a valid condition), so the natural 'x == 0' reads better.",
+      badExample: "if 0 == n:", goodExample: "if n == 0:", autofixable: false),
     CodeInfo(code: "float-equality",
       title: "Exact float '=='/'!=' is unreliable",
       explanation: "An idiom hint on VALID code (opt-in via '--style:float-equality' " &
@@ -478,7 +492,8 @@ const parserFixCodes* = [
   "ruby-block-params", "c-block-comment", "foreign-routine-clause",
   "extends-inheritance", "yield-from", "async-routine-prefix",
   "redundant-bool-literal", "double-negation", "not-in-precedence",
-  "not-compare-precedence", "simplify-boolean-return", "float-equality"]
+  "not-compare-precedence", "simplify-boolean-return", "float-equality",
+  "nil-comparison", "yoda-condition"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't

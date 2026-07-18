@@ -215,6 +215,8 @@ suggest_only_flag "not-cmp-prec"  'let z = not a == b\n'    'not-compare-precede
 suggest_only_flag "bool-return"   'proc f(c: bool): bool =\n  if c:\n    return true\n  else:\n    return false\n' 'simplify-boolean-return' '--style:idioms'
 suggest_only_flag "float-eq"      'let z = x == 3.14\n'   'float-equality'         '--style:float-equality'
 suggest_only_flag "float-eq-ped"  'let z = x == 3.14\n'   'float-equality'         '--pedantic'
+suggest_only_flag "nil-compare"   'let z = p == nil\n'    'nil-comparison'         '--style:nil-comparison'
+suggest_only_flag "yoda"          'let z = 0 == n\n'      'yoda-condition'         '--style:yoda'
 
 # --- go-var-notype auto-fix ('var x int' -> 'var x: int') ------------------
 for form in 'var x int|var x: int' 'let y string|let y: string' 'const z f|const z: f' 'var p* int|var p*: int'; do

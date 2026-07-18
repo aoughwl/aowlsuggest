@@ -234,23 +234,25 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
                                label: "change '" & $cur & "' to '" & $want & "'")
         result.hint = "change it to '" & $want & "'"
   of "expected-colon":
-    # Insert ':' at the end of the line's content.
-    let e = lineContentEndOffset(src, starts, d.line)
-    if charAt(src, e - 1) != ':':
+    # Insert ':' exactly where the diagnostic points — after the condition. The
+    # parser puts the caret there (mid-line for a one-liner `if c return x`, at the
+    # line's end when the body is indented below), so honour d.col rather than
+    # blindly appending at end-of-line.
+    let e = lineColToOffset(src, starts, d.line, d.col)
+    if charAt(src, e - 1) != ':' and charAt(src, e) != ':':
       result.kind = fkAuto
       result.edit = TextEdit(startOff: e, endOff: e, replacement: ":",
                              label: "insert ':'")
       result.hint = "insert ':'"
   of "missing-routine-equals":
-    # Insert ' =' at the end of the routine's signature (the header line, which
-    # `related` points at).
-    if d.hasRelated:
-      let e = lineContentEndOffset(src, starts, d.relLine)
-      if charAt(src, e - 1) != '=':
-        result.kind = fkAuto
-        result.edit = TextEdit(startOff: e, endOff: e, replacement: " =",
-                               label: "insert '='")
-        result.hint = "insert '=' after the signature"
+    # Insert ' =' at the end of the routine's SIGNATURE — the diagnostic's own
+    # (primary) line, which now anchors on the header; the body is the `related`.
+    let e = lineContentEndOffset(src, starts, d.line)
+    if charAt(src, e - 1) != '=':
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: e, endOff: e, replacement: " =",
+                             label: "insert '='")
+      result.hint = "insert '=' after the signature"
   of "unterminated-char":
     # `'a` -> `'a'`: insert the closing quote just past the span. Guard: the span
     # must actually start at a `'`.

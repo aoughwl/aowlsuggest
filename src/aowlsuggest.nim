@@ -72,6 +72,8 @@ proc styleFlag(cat: string; ok: var bool): string =
   of "semicolons", "semicolon": "--semicolons:warn"
   of "idioms", "idiom": "--idioms:warn"
   of "float-equality", "float-eq": "--float-equality:warn"
+  of "nil-comparison", "nil-style": "--nil-comparison:warn"
+  of "yoda", "yoda-condition": "--yoda:warn"
   of "indent-consistency", "indent": "--indent-consistency"
   else:
     ok = false
@@ -86,6 +88,8 @@ proc flagForCode(code: string): string =
   of "redundant-bool-literal", "double-negation", "not-in-precedence",
      "not-compare-precedence", "simplify-boolean-return": "--idioms:warn"
   of "float-equality": "--float-equality:warn"
+  of "nil-comparison": "--nil-comparison:warn"
+  of "yoda-condition": "--yoda:warn"
   of "c-style-operator": "--c-operators:warn"
   of "redundant-semicolon": "--semicolons:warn"
   of "indent-consistency": "--indent-consistency"
