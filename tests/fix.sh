@@ -182,6 +182,8 @@ suggest_only "c-block-comment" '/* a comment */\nlet x = 5\n' 'c-block-comment'
 suggest_only "throws-clause" 'proc f() throws IOError = discard\n' 'foreign-routine-clause'
 suggest_only "where-clause"  'proc f[T](x: T) where T: int = discard\n' 'foreign-routine-clause'
 suggest_only "extends"       'type Dog extends Animal = object\n' 'extends-inheritance'
+suggest_only "yield-from"    'iterator it(): int =\n  yield from xs\n' 'yield-from'
+suggest_only "async-prefix"  'async proc f() = discard\n' 'async-routine-prefix'
 
 # --- go-var-notype auto-fix ('var x int' -> 'var x: int') ------------------
 for form in 'var x int|var x: int' 'let y string|let y: string' 'const z f|const z: f' 'var p* int|var p*: int'; do

@@ -115,6 +115,20 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "where the base goes, is a design choice you should make.",
       badExample: "type Dog extends Animal = object",
       goodExample: "type Dog = object of Animal", autofixable: false),
+    CodeInfo(code: "yield-from",
+      title: "Nim has no 'yield from' — iterate and yield",
+      explanation: "Python's 'yield from xs' (delegate to a sub-iterator) is " &
+        "written in Nim as an explicit loop: 'for x in xs: yield x'. NOT " &
+        "auto-fixed: the loop variable and body are yours to name.",
+      badExample: "yield from xs", goodExample: "for x in xs: yield x",
+      autofixable: false),
+    CodeInfo(code: "async-routine-prefix",
+      title: "'async proc' — Nim marks async with a '{.async.}' pragma",
+      explanation: "Nim has no 'async' routine prefix (the JS/Python/C#/Rust form). " &
+        "A routine is made async with the '{.async.}' pragma: 'proc f() {.async.} = " &
+        "…'. NOT auto-fixed: moving the marker to a pragma is a change you confirm.",
+      badExample: "async proc f() = …", goodExample: "proc f() {.async.} = …",
+      autofixable: false),
     CodeInfo(code: "stray-end",
       title: "Stray 'end' — Nim uses indentation",
       explanation: "'end' is a reserved keyword with no statement form (a " &
@@ -409,7 +423,7 @@ const parserFixCodes* = [
   "double-colon", "c-brace-body", "foreign-function-keyword", "go-var-notype",
   "foreign-block-keyword", "foreign-case-block", "do-while-loop",
   "ruby-block-params", "c-block-comment", "foreign-routine-clause",
-  "extends-inheritance"]
+  "extends-inheritance", "yield-from", "async-routine-prefix"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't
