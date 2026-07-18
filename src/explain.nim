@@ -99,12 +99,13 @@ proc knowledgeBase*(): seq[CodeInfo] =
       badExample: "/* a comment */", goodExample: "#[ a comment ]#",
       autofixable: true),
     CodeInfo(code: "foreign-routine-clause",
-      title: "'throws' / 'where' routine clause — Nim uses a pragma / '[T: …]'",
+      title: "'throws' / 'where' / 'override' / 'noexcept' clause — Nim uses a pragma",
       explanation: "Nim declares a routine's raised effects with a pragma " &
-        "('{.raises: [IOError].}'), not a Java 'throws' clause, and a generic " &
-        "constraint goes in the brackets ('proc f[T: Constraint]()'), not a " &
-        "Rust/Swift/C# 'where' clause. NOT auto-fixed: the pragma or constraint " &
-        "placement is a change you should confirm.",
+        "('{.raises: [IOError].}' — or '{.raises: [].}' for C++ 'noexcept'), not a " &
+        "Java 'throws' clause; a generic constraint goes in the brackets " &
+        "('proc f[T: Constraint]()'), not a Rust/Swift/C# 'where' clause; and an " &
+        "'override' is implicit (Nim uses 'method' for dynamic dispatch). NOT " &
+        "auto-fixed: the pragma or constraint placement is a change you should confirm.",
       badExample: "proc f() throws IOError", goodExample: "proc f() {.raises: [IOError].}",
       autofixable: false),
     CodeInfo(code: "extends-inheritance",
