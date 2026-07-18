@@ -529,7 +529,9 @@ proc main(): int =
       let c = loadConfig(p)
       if c.found: applyConfig(opts, c)
       elif configPath.len > 0:
+        # an EXPLICIT --config that can't be read is a hard error, not a warning
         write stderr, "aowlsuggest: cannot read config: " & p & "\n"
+        return 2
   for ci in 0 ..< cli.len:
     let a = cli[ci]
     if a == "--write": opts.doWrite = true

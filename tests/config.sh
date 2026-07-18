@@ -65,6 +65,17 @@ grep -q 'assignment-in-condition' <<<"$out" || die "suppress=false not applied (
 out2="$(cd "$work/sup" && "$AS" check --no-config s.nim 2>/dev/null)"
 grep -q 'assignment-in-condition' <<<"$out2" && die "inline ignore not honored by default: $out2"
 
+echo "== an explicit --config that can't be read is a hard error (exit 2) =="
+"$AS" check --config:"$work/does-not-exist" "$work/proj/f.nim" >/dev/null 2>&1
+[ "$?" = "2" ] || die "missing --config should exit 2"
+
+echo "== a binary/garbage config degrades gracefully (no crash) =="
+mkdir -p "$work/bin"
+printf '\x00\x01\x02 garbage \xff not a config' > "$work/bin/.aowlsuggest"
+printf 'let g = 1\n' > "$work/bin/b.nim"
+( cd "$work/bin" && "$AS" check b.nim >/dev/null 2>&1 )
+[ "$?" = "0" ] || die "binary config crashed / errored the run"
+
 echo "== a CLI flag still overrides/extends the config =="
 # config has pedantic; adding --style:lf on the CLI extends it (CRLF now flagged)
 printf 'let a = 1\r\n' > "$work/proj/crlf.nim"
