@@ -126,6 +126,17 @@ b2="$(cat "$WORK/cb2.nim")"
 "$AS" fix --no-config --write "$WORK/cb2.nim" >/dev/null 2>&1
 [ "$b2" = "$(cat "$WORK/cb2.nim")" ] || { echo "FAIL: comparison-in-binding fix touched a valid comparison"; fail=1; }
 
+# --- else-if-not-elif auto-fix ('else if' -> 'elif') -----------------------
+printf 'if a:\n  discard\nelse if b:\n  discard\n' > "$WORK/ei.nim"
+"$AS" fix --no-config --write "$WORK/ei.nim" >/dev/null 2>&1
+[ "elif b:" = "$(sed -n '3p' "$WORK/ei.nim")" ] || { echo "FAIL: else if -> elif: $(sed -n '3p' "$WORK/ei.nim")"; fail=1; }
+"$AS" check --no-config "$WORK/ei.nim" >/dev/null 2>&1 || { echo "FAIL: else-if fix left an error"; fail=1; }
+# a valid else: block containing an if must be untouched
+printf 'if a:\n  discard\nelse:\n  if b:\n    discard\n' > "$WORK/ei2.nim"
+v="$(cat "$WORK/ei2.nim")"
+"$AS" fix --no-config --write "$WORK/ei2.nim" >/dev/null 2>&1
+[ "$v" = "$(cat "$WORK/ei2.nim")" ] || { echo "FAIL: else-if fix touched a valid else block"; fail=1; }
+
 # --- unterminated-backtick is a SUGGESTION, never auto-applied -------------
 # where the closing backtick belongs is ambiguous (idents can hold spaces/ops),
 # so aowlsuggest suggests it rather than guessing.

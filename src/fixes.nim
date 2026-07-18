@@ -92,6 +92,19 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
       result.edit = TextEdit(startOff: a, endOff: b, replacement: "=",
                              label: "change '==' to '='")
       result.hint = "did you mean '='?"
+  of "else-if-not-elif":
+    # The span covers `else if` (from the `else` to the end of `if`, same line).
+    # Collapse the whole run to `elif`. Guard: it really starts with `else` and
+    # ends with `if`, so a surprising span degrades to no-fix.
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    let b = lineColToOffset(src, starts, d.line, d.endCol)
+    if b >= a + 6 and charAt(src, a) == 'e' and charAt(src, a+1) == 'l' and
+       charAt(src, a+2) == 's' and charAt(src, a+3) == 'e' and
+       charAt(src, b-2) == 'i' and charAt(src, b-1) == 'f':
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: a, endOff: b, replacement: "elif",
+                             label: "change 'else if' to 'elif'")
+      result.hint = "use 'elif'"
   of "mismatched-bracket":
     # The span is one wrong closing bracket; swap it for the closer that matches
     # the opener named in the message ("']' does not match '('").

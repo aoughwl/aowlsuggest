@@ -30,6 +30,12 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "rather than assigns — the mirror of assignment-in-condition, and " &
         "almost always a typo for '='.",
       badExample: "let x == 5", goodExample: "let x = 5", autofixable: true),
+    CodeInfo(code: "else-if-not-elif",
+      title: "'else if' is not Nim — use 'elif'",
+      explanation: "Nim's condition-chain keyword is 'elif'; 'else' must be " &
+        "followed directly by ':'. Writing 'else if' (a C/Python habit) is " &
+        "always malformed. aowlsuggest collapses it to 'elif'.",
+      badExample: "else if b:", goodExample: "elif b:", autofixable: true),
     CodeInfo(code: "mismatched-bracket",
       title: "Closing bracket does not match its opener",
       explanation: "A ')' / ']' / '}' closes a different kind of bracket than " &
