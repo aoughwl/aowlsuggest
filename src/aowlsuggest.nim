@@ -82,6 +82,8 @@ proc styleFlag(cat: string; ok: var bool): string =
   of "bare-except", "bare-exception": "--bare-except:warn"
   of "cast", "cast-used": "--cast:warn"
   of "converter", "converter-defined": "--converter:warn"
+  of "addr", "addr-of": "--addr:warn"
+  of "asm", "asm-block": "--asm:warn"
   of "indent-consistency", "indent": "--indent-consistency"
   else:
     ok = false
@@ -106,6 +108,8 @@ proc flagForCode(code: string): string =
   of "bare-except": "--bare-except:warn"
   of "cast-used": "--cast:warn"
   of "converter-defined": "--converter:warn"
+  of "addr-of": "--addr:warn"
+  of "asm-block": "--asm:warn"
   of "c-style-operator": "--c-operators:warn"
   of "redundant-semicolon": "--semicolons:warn"
   of "indent-consistency": "--indent-consistency"
@@ -552,7 +556,7 @@ proc usage(): int =
   write stderr, "                     idioms (== true / not not)  float-equality  indent-consistency\n"
   write stderr, "                     nil-comparison  yoda  redundant-parens  empty-string\n"
   write stderr, "                     debug-echo  range-index  broad-exception (opinions)\n"
-  write stderr, "                     bare-except  cast  converter (opinions)\n"
+  write stderr, "                     bare-except  cast  converter  addr  asm (opinions)\n"
   write stderr, "  --indent-width:N advisory: warn when indent isn't a multiple of N\n"
   write stderr, "  --rule:CODE=LEVEL per-code severity (off|hint|warning|error); repeatable.\n"
   write stderr, "                   Enables the check it names; overrides config. Same as a\n"

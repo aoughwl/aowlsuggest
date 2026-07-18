@@ -225,6 +225,8 @@ suggest_only_flag "broad-except"  'try:\n  discard\nexcept Exception:\n  discard
 suggest_only_flag "bare-except"   'try:\n  discard\nexcept:\n  discard\n' 'bare-except' '--style:bare-except'
 suggest_only_flag "cast-used"     'let y = cast[int](p)\n' 'cast-used' '--style:cast'
 suggest_only_flag "converter-def" 'converter toInt(x: bool): int = 0\n' 'converter-defined' '--style:converter'
+suggest_only_flag "addr-of"       'let p = addr x\n' 'addr-of' '--style:addr'
+suggest_only_flag "asm-block"     'asm """\n  nop\n"""\n' 'asm-block' '--style:asm'
 
 # --- go-var-notype auto-fix ('var x int' -> 'var x: int') ------------------
 for form in 'var x int|var x: int' 'let y string|let y: string' 'const z f|const z: f' 'var p* int|var p*: int'; do

@@ -254,6 +254,22 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "clearer.",
       badExample: "converter toInt(b: bool): int = ord(b)",
       goodExample: "proc toInt(b: bool): int = ord(b)", autofixable: false),
+    CodeInfo(code: "addr-of",
+      title: "'addr'/'unsafeAddr' takes a raw address",
+      explanation: "An OPINION, off by default — enable it per project in a " &
+        "'.aowlsuggest' [rules] section (or '--rule:addr-of=…'). Taking a raw " &
+        "address escapes Nim's memory safety; a project can surface every 'addr' / " &
+        "'unsafeAddr' for review. Passing by 'var'/'ref' keeps the checks.",
+      badExample: "let p = addr buf[0]", goodExample: "proc use(x: var T) = …",
+      autofixable: false),
+    CodeInfo(code: "asm-block",
+      title: "Inline 'asm' is non-portable and unchecked",
+      explanation: "An OPINION, off by default — enable it per project in a " &
+        "'.aowlsuggest' [rules] section (or '--rule:asm-block=…'). An inline 'asm' " &
+        "block ties the code to one CPU/toolchain and bypasses every Nim check; " &
+        "prefer a Nim or C-FFI implementation where feasible.",
+      badExample: "asm \"\"\"nop\"\"\"", goodExample: "proc nop() {.importc.}",
+      autofixable: false),
     CodeInfo(code: "float-equality",
       title: "Exact float '=='/'!=' is unreliable",
       explanation: "An idiom hint on VALID code (opt-in via '--style:float-equality' " &
@@ -563,7 +579,7 @@ const parserFixCodes* = [
   "not-compare-precedence", "simplify-boolean-return", "float-equality",
   "nil-comparison", "yoda-condition", "redundant-parens-condition",
   "empty-string-concat", "debug-echo", "manual-range-index", "broad-exception",
-  "bare-except", "cast-used", "converter-defined"]
+  "bare-except", "cast-used", "converter-defined", "addr-of", "asm-block"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't
