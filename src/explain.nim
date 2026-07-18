@@ -145,6 +145,15 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "auto-fixed: on a custom type with a non-involutive 'not' overload the two " &
         "could in principle differ, so removing them is your call.",
       badExample: "if not not ready:", goodExample: "if ready:", autofixable: false),
+    CodeInfo(code: "not-in-precedence",
+      title: "'not x in y' means '(not x) in y' — likely 'x notin y'",
+      explanation: "An idiom hint on VALID code (opt-in via '--style:idioms'). " &
+        "Unary 'not' binds tighter than the 'in' operator, so 'not x in y' parses " &
+        "as '(not x) in y' — the Python migrant almost always wants membership " &
+        "negation, 'x notin y'. NOT auto-fixed: on the rare occasion '(not x) in y' " &
+        "is intended, only you know, so the rewrite is yours.",
+      badExample: "if not k in seen:", goodExample: "if k notin seen:",
+      autofixable: false),
     CodeInfo(code: "float-equality",
       title: "Exact float '=='/'!=' is unreliable",
       explanation: "An idiom hint on VALID code (opt-in via '--style:float-equality' " &
@@ -450,7 +459,8 @@ const parserFixCodes* = [
   "foreign-block-keyword", "foreign-case-block", "do-while-loop",
   "ruby-block-params", "c-block-comment", "foreign-routine-clause",
   "extends-inheritance", "yield-from", "async-routine-prefix",
-  "redundant-bool-literal", "double-negation", "float-equality"]
+  "redundant-bool-literal", "double-negation", "not-in-precedence",
+  "float-equality"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't
