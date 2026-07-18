@@ -63,6 +63,13 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "'let/var/const mut x' to 'var x'. A variable literally named 'mut' " &
         "('let mut = 5') and the 'x: var int' type modifier are left untouched.",
       badExample: "let mut x = 5", goodExample: "var x = 5", autofixable: true),
+    CodeInfo(code: "go-var-notype",
+      title: "'var x int' — a typed binding needs a ':'",
+      explanation: "Nim writes a typed binding as 'name: Type', not the " &
+        "Go/Java/C#/Swift 'name type'. aowlsuggest inserts the ':' — " &
+        "'var x int' becomes 'var x: int'. An export marker is preserved " &
+        "('var x* int' → 'var x*: int').",
+      badExample: "var x int", goodExample: "var x: int", autofixable: true),
     CodeInfo(code: "angle-bracket-generics",
       title: "'<T>' angle-bracket generics — Nim uses '[T]'",
       explanation: "Nim writes generic parameters in square brackets, not the " &

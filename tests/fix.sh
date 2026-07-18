@@ -152,6 +152,18 @@ printf 'let mut = 5\n' > "$WORK/mk2.nim"
 "$AS" fix --no-config --write "$WORK/mk2.nim" >/dev/null 2>&1
 [ "let mut = 5" = "$(cat "$WORK/mk2.nim")" ] || { echo "FAIL: mut fix touched a variable named mut"; fail=1; }
 
+# --- go-var-notype auto-fix ('var x int' -> 'var x: int') ------------------
+for form in 'var x int|var x: int' 'let y string|let y: string' 'const z f|const z: f' 'var p* int|var p*: int'; do
+  bad="${form%|*}"; good="${form#*|}"
+  printf '%s\n' "$bad" > "$WORK/gv.nim"
+  "$AS" fix --no-config --write "$WORK/gv.nim" >/dev/null 2>&1
+  [ "$good" = "$(cat "$WORK/gv.nim")" ] || { echo "FAIL: go-var fix '$bad' -> $(cat "$WORK/gv.nim")"; fail=1; }
+done
+printf 'var x: int\n' > "$WORK/gv2.nim"      # already-typed must be untouched
+v="$(cat "$WORK/gv2.nim")"
+"$AS" fix --no-config --write "$WORK/gv2.nim" >/dev/null 2>&1
+[ "$v" = "$(cat "$WORK/gv2.nim")" ] || { echo "FAIL: go-var fix touched a typed binding"; fail=1; }
+
 # --- angle-bracket-generics auto-fix ('proc f<T>()' -> 'proc f[T]()') ------
 printf 'proc f<T>(x: T) = discard\n' > "$WORK/ag.nim"
 "$AS" fix --no-config --write "$WORK/ag.nim" >/dev/null 2>&1

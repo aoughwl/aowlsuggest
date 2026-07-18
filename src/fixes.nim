@@ -127,6 +127,19 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
       result.edit = TextEdit(startOff: a, endOff: b, replacement: "var",
                              label: "change '" & substr(src, a, b-1) & "' to 'var'")
       result.hint = "use 'var' for a mutable binding"
+  of "go-var-notype":
+    # `var x int` → `var x: int` (the Go/Java/C# `name type` binding). The span is
+    # the stray TYPE token; walk back over the whitespace to the end of the name
+    # and replace that gap with ': ', giving the idiomatic `name: Type`. Guard: the
+    # char before the gap isn't already a ':' (so a re-run is a no-op).
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    var s = a
+    while s > 0 and (charAt(src, s - 1) == ' ' or charAt(src, s - 1) == '\t'): dec s
+    if s < a and s > 0 and charAt(src, s - 1) != ':':
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: s, endOff: a, replacement: ": ",
+                             label: "insert ':' before the type")
+      result.hint = "a typed binding is 'name: Type'"
   of "angle-bracket-generics":
     # `proc f<T>(…)` → `proc f[T](…)`. The span is the `<`; find its matching `>`
     # (tracking `<`/`>` nesting for `<A<B>>`) and rewrite `<…>` to `[…]`. Bails at
