@@ -229,6 +229,31 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "Prefer 'CatchableError' (or a specific type) on both sides.",
       badExample: "except Exception:", goodExample: "except CatchableError:",
       autofixable: false),
+    CodeInfo(code: "bare-except",
+      title: "A bare 'except:' catches everything",
+      explanation: "An OPINION, off by default — enable it per project in a " &
+        "'.aowlsuggest' [rules] section (or '--rule:bare-except=…'). A bare " &
+        "'except:' (no exception type) also catches Defects — bugs you should let " &
+        "crash — and swallows anything unexpected. Name the exceptions you handle.",
+      badExample: "except:", goodExample: "except CatchableError as e:",
+      autofixable: false),
+    CodeInfo(code: "cast-used",
+      title: "'cast[T](x)' reinterprets memory unchecked",
+      explanation: "An OPINION, off by default — enable it per project in a " &
+        "'.aowlsuggest' [rules] section (or '--rule:cast-used=…'). 'cast' bypasses " &
+        "the type system entirely; a project that wants every reinterpret audited " &
+        "can surface them. A value that genuinely converts should use 'T(x)'.",
+      badExample: "let p = cast[pointer](i)", goodExample: "let f = float(i)",
+      autofixable: false),
+    CodeInfo(code: "converter-defined",
+      title: "A 'converter' installs an implicit conversion",
+      explanation: "An OPINION, off by default — enable it per project in a " &
+        "'.aowlsuggest' [rules] section (or '--rule:converter-defined=…'). An " &
+        "implicit 'converter' makes overload resolution and error messages harder " &
+        "to reason about; an explicit conversion proc the caller opts into is " &
+        "clearer.",
+      badExample: "converter toInt(b: bool): int = ord(b)",
+      goodExample: "proc toInt(b: bool): int = ord(b)", autofixable: false),
     CodeInfo(code: "float-equality",
       title: "Exact float '=='/'!=' is unreliable",
       explanation: "An idiom hint on VALID code (opt-in via '--style:float-equality' " &
@@ -537,7 +562,8 @@ const parserFixCodes* = [
   "redundant-bool-literal", "double-negation", "not-in-precedence",
   "not-compare-precedence", "simplify-boolean-return", "float-equality",
   "nil-comparison", "yoda-condition", "redundant-parens-condition",
-  "empty-string-concat", "debug-echo", "manual-range-index", "broad-exception"]
+  "empty-string-concat", "debug-echo", "manual-range-index", "broad-exception",
+  "bare-except", "cast-used", "converter-defined"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't

@@ -222,6 +222,9 @@ suggest_only_flag "empty-string"  'let s = a & ""\n'     'empty-string-concat'  
 suggest_only_flag "debug-echo"    'echo "hi"\n'          'debug-echo'             '--style:debug-echo'
 suggest_only_flag "range-index"   'for i in 0 .. a.len - 1:\n  discard\n' 'manual-range-index' '--style:range-index'
 suggest_only_flag "broad-except"  'try:\n  discard\nexcept Exception:\n  discard\n' 'broad-exception' '--style:broad-exception'
+suggest_only_flag "bare-except"   'try:\n  discard\nexcept:\n  discard\n' 'bare-except' '--style:bare-except'
+suggest_only_flag "cast-used"     'let y = cast[int](p)\n' 'cast-used' '--style:cast'
+suggest_only_flag "converter-def" 'converter toInt(x: bool): int = 0\n' 'converter-defined' '--style:converter'
 
 # --- go-var-notype auto-fix ('var x int' -> 'var x: int') ------------------
 for form in 'var x int|var x: int' 'let y string|let y: string' 'const z f|const z: f' 'var p* int|var p*: int'; do
