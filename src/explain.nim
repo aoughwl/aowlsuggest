@@ -43,6 +43,13 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "`std.vector`) or a single ':' (a mistyped annotation) — only you know " &
         "which, so it is offered as a suggestion.",
       badExample: "std::vector", goodExample: "std.vector", autofixable: false),
+    CodeInfo(code: "c-brace-body",
+      title: "C-style '{ }' block body — Nim uses an indented body",
+      explanation: "Nim writes a routine body as '= <indented statements>', not " &
+        "'{ … }' braces (a C/Java/JS/Rust habit). NOT auto-fixed: turning the " &
+        "braces into an indented block is a reformat only you should confirm.",
+      badExample: "proc f() { echo 1 }", goodExample: "proc f() =\n  echo 1",
+      autofixable: false),
     CodeInfo(code: "stray-end",
       title: "Stray 'end' — Nim uses indentation",
       explanation: "'end' is a reserved keyword with no statement form (a " &
@@ -320,7 +327,7 @@ const parserFixCodes* = [
   "missing-type-equals", "expected-condition", "expected-in", "of-without-value",
   "expected-indented-body", "func-in-type-description", "empty-variant-branch",
   "enum-member-not-identifier", "invalid-number", "c-style-operator",
-  "double-colon"]
+  "double-colon", "c-brace-body"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't
