@@ -140,6 +140,18 @@ for form in 'let x := 5|let x = 5' 'const C := 5|const C = 5' 'var v := 5|var v 
   [ "$good" = "$(cat "$WORK/w.nim")" ] || { echo "FAIL: walrus fix '$bad' -> $(cat "$WORK/w.nim")"; fail=1; }
 done
 
+# --- mut-not-a-keyword auto-fix ('let/var/const mut x' -> 'var x') ---------
+for form in 'let mut x = 5|var x = 5' 'var mut y = 1|var y = 1' 'const mut z = 2|var z = 2'; do
+  bad="${form%|*}"; good="${form#*|}"
+  printf '%s\n' "$bad" > "$WORK/mk.nim"
+  "$AS" fix --no-config --write "$WORK/mk.nim" >/dev/null 2>&1
+  [ "$good" = "$(cat "$WORK/mk.nim")" ] || { echo "FAIL: mut fix '$bad' -> $(cat "$WORK/mk.nim")"; fail=1; }
+done
+# a variable literally named 'mut' must be left untouched
+printf 'let mut = 5\n' > "$WORK/mk2.nim"
+"$AS" fix --no-config --write "$WORK/mk2.nim" >/dev/null 2>&1
+[ "let mut = 5" = "$(cat "$WORK/mk2.nim")" ] || { echo "FAIL: mut fix touched a variable named mut"; fail=1; }
+
 # --- angle-bracket-generics auto-fix ('proc f<T>()' -> 'proc f[T]()') ------
 printf 'proc f<T>(x: T) = discard\n' > "$WORK/ag.nim"
 "$AS" fix --no-config --write "$WORK/ag.nim" >/dev/null 2>&1

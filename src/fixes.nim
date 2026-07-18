@@ -111,6 +111,22 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
       result.edit = TextEdit(startOff: a, endOff: b, replacement: "",
                              label: "remove the 'end'")
       result.hint = "remove the 'end' (Nim uses indentation)"
+  of "mut-not-a-keyword":
+    # `let/var/const mut x` → `var x` (the Rust mutable-binding habit). The span
+    # covers `<keyword> mut`; replace the whole run with `var`. Guard: it starts
+    # with a binding keyword and ends with `mut`, so a surprising span no-fixes.
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    let b = lineColToOffset(src, starts, d.line, d.endCol)
+    let startsBinding =
+      (charAt(src, a) == 'l' and charAt(src, a+1) == 'e' and charAt(src, a+2) == 't') or
+      (charAt(src, a) == 'v' and charAt(src, a+1) == 'a' and charAt(src, a+2) == 'r') or
+      (charAt(src, a) == 'c' and charAt(src, a+1) == 'o' and charAt(src, a+2) == 'n')
+    if b > a + 3 and startsBinding and
+       charAt(src, b-3) == 'm' and charAt(src, b-2) == 'u' and charAt(src, b-1) == 't':
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: a, endOff: b, replacement: "var",
+                             label: "change '" & substr(src, a, b-1) & "' to 'var'")
+      result.hint = "use 'var' for a mutable binding"
   of "angle-bracket-generics":
     # `proc f<T>(…)` → `proc f[T](…)`. The span is the `<`; find its matching `>`
     # (tracking `<`/`>` nesting for `<A<B>>`) and rewrite `<…>` to `[…]`. Bails at

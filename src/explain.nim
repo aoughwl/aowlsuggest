@@ -56,6 +56,13 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "Ruby/Pascal/Lua block terminator). Nim delimits blocks by indentation, " &
         "so aowlsuggest removes the stray 'end'.",
       badExample: "…block…\nend", goodExample: "…block…", autofixable: true),
+    CodeInfo(code: "mut-not-a-keyword",
+      title: "'mut' is not a keyword — a mutable binding is 'var'",
+      explanation: "Nim has no 'mut' keyword (the Rust mutable-binding habit). A " &
+        "mutable binding is introduced with 'var'. aowlsuggest rewrites " &
+        "'let/var/const mut x' to 'var x'. A variable literally named 'mut' " &
+        "('let mut = 5') and the 'x: var int' type modifier are left untouched.",
+      badExample: "let mut x = 5", goodExample: "var x = 5", autofixable: true),
     CodeInfo(code: "angle-bracket-generics",
       title: "'<T>' angle-bracket generics — Nim uses '[T]'",
       explanation: "Nim writes generic parameters in square brackets, not the " &
