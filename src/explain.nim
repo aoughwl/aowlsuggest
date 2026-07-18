@@ -68,6 +68,28 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "object' (or an import) is a design choice only you should make.",
       badExample: "class Foo {\n  x: int\n}", goodExample: "type Foo = object\n  x: int",
       autofixable: false),
+    CodeInfo(code: "foreign-case-block",
+      title: "'switch' / 'match' is not a Nim keyword — use 'case'",
+      explanation: "Nim's multi-way branch is 'case <expr>:' with indented 'of' " &
+        "branches, not the C/Java/Rust/Scala 'switch'/'match' with a '{ }' body. " &
+        "NOT auto-fixed: reshaping the arms into 'of' branches is a rewrite only " &
+        "you should confirm.",
+      badExample: "switch x {\n  1: a\n}", goodExample: "case x\nof 1: a",
+      autofixable: false),
+    CodeInfo(code: "do-while-loop",
+      title: "Nim has no 'do { } while' loop — use 'while'",
+      explanation: "Nim has no C/JS 'do { } while' loop. Use 'while <cond>:'; for " &
+        "run-at-least-once semantics, 'while true:' with a trailing 'if not <cond>: " &
+        "break'. NOT auto-fixed: the loop body and exit test must be placed by you.",
+      badExample: "do {\n  step()\n} while cond", goodExample: "while true:\n  step()\n  if not cond: break",
+      autofixable: false),
+    CodeInfo(code: "ruby-block-params",
+      title: "Ruby 'do |x|' block params — Nim uses 'do (x):'",
+      explanation: "Nim writes a block parameter list as 'do (x): <body>', not the " &
+        "Ruby 'do |x|' pipes. NOT auto-fixed: the parameter types and body layout " &
+        "are yours to write.",
+      badExample: "xs.each do |i|\n  echo i", goodExample: "xs.each do (i: int):\n  echo i",
+      autofixable: false),
     CodeInfo(code: "stray-end",
       title: "Stray 'end' — Nim uses indentation",
       explanation: "'end' is a reserved keyword with no statement form (a " &
@@ -360,7 +382,8 @@ const parserFixCodes* = [
   "expected-indented-body", "func-in-type-description", "empty-variant-branch",
   "enum-member-not-identifier", "invalid-number", "c-style-operator",
   "double-colon", "c-brace-body", "foreign-function-keyword", "go-var-notype",
-  "foreign-block-keyword"]
+  "foreign-block-keyword", "foreign-case-block", "do-while-loop",
+  "ruby-block-params"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't

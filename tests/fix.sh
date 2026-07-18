@@ -166,6 +166,19 @@ fbo="$("$AS" fix --no-config --write "$WORK/fb.nim" 2>&1)"
 [ "$fbb" = "$(cat "$WORK/fb.nim")" ] || { echo "FAIL: foreign-block-keyword was auto-applied (must be suggestion-only)"; fail=1; }
 grep -q 'foreign-block-keyword' <<<"$fbo" || { echo "FAIL: foreign-block-keyword suggestion not surfaced"; fail=1; }
 
+# --- switch/match/do-while/ruby-do are SUGGESTION-ONLY (never auto-applied) --
+suggest_only() {  # name | before(printf %b) | expected-code
+  local name="$1" before="$2" code="$3"
+  printf '%b' "$before" > "$WORK/so.nim"
+  local b="$(cat "$WORK/so.nim")"
+  local o="$("$AS" fix --no-config --write "$WORK/so.nim" 2>&1)"
+  [ "$b" = "$(cat "$WORK/so.nim")" ] || { echo "FAIL: $name was auto-applied (must be suggestion-only)"; fail=1; }
+  grep -q "$code" <<<"$o" || { echo "FAIL: $name suggestion ($code) not surfaced"; fail=1; }
+}
+suggest_only "switch-block" 'switch x {\n  discard\n}\n' 'foreign-case-block'
+suggest_only "do-while"     'do {\n  discard\n} while (x)\n' 'do-while-loop'
+suggest_only "ruby-do"      'xs.each do |i|\n  echo i\n' 'ruby-block-params'
+
 # --- go-var-notype auto-fix ('var x int' -> 'var x: int') ------------------
 for form in 'var x int|var x: int' 'let y string|let y: string' 'const z f|const z: f' 'var p* int|var p*: int'; do
   bad="${form%|*}"; good="${form#*|}"
