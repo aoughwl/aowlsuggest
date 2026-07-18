@@ -59,7 +59,27 @@ r=d["runs"][0]["results"][0]
 fx=r["fixes"][0]["artifactChanges"][0]["replacements"][0]
 assert fx["insertedContent"]["text"]=="==", fx
 assert fx["deletedRegion"]["startLine"]==1, fx
+assert r["partialFingerprints"]["primaryLocationLineHash"], "missing fingerprint"
+assert d["runs"][0]["automationDetails"]["id"], "missing automationDetails"
 PY
+# SARIF partialFingerprints are STABLE when the same bug shifts line number.
+printf 'if q = 1:\n  discard\n' > "$WORK/fp_a.nim"
+printf '\n\nif q = 1:\n  discard\n' > "$WORK/fp_b.nim"
+fpa="$("$AS" check --no-config --format:sarif "$WORK/fp_a.nim" | python3 -c 'import json,sys;print(json.load(sys.stdin)["runs"][0]["results"][0]["partialFingerprints"]["primaryLocationLineHash"])')"
+fpb="$("$AS" check --no-config --format:sarif "$WORK/fp_b.nim" | python3 -c 'import json,sys;print(json.load(sys.stdin)["runs"][0]["results"][0]["partialFingerprints"]["primaryLocationLineHash"])')"
+[ -n "$fpa" ] && [ "$fpa" = "$fpb" ] || { echo "FAIL: fingerprint not stable across line shift ($fpa vs $fpb)"; fail=1; }
+
+# --- CI gates: --max-warnings + --quiet ------------------------------------
+printf 'let ww = 1   \n' > "$WORK/warn.nim"   # one trailing-whitespace warning (pedantic)
+"$AS" lint --no-config --pedantic --max-warnings:0 "$WORK/warn.nim" >/dev/null 2>&1 && {
+  echo "FAIL: --max-warnings:0 should fail on a warning"; fail=1; }
+"$AS" lint --no-config --pedantic --max-warnings:5 "$WORK/warn.nim" >/dev/null 2>&1 || {
+  echo "FAIL: --max-warnings:5 should pass with one warning"; fail=1; }
+# --quiet hides the warning line but keeps errors
+printf 'if e = 1:   \n  discard\n' > "$WORK/mix.nim"   # 1 error + 1 trailing-ws warning
+q="$("$AS" check --no-config --pedantic --quiet "$WORK/mix.nim" 2>/dev/null)"
+grep -q 'assignment-in-condition' <<<"$q" || { echo "FAIL: --quiet dropped the error"; fail=1; }
+grep -q 'trailing-whitespace' <<<"$q" && { echo "FAIL: --quiet kept a warning"; fail=1; }
 
 # --- explain ---------------------------------------------------------------
 "$AS" explain assignment-in-condition 2>&1 | grep -q "did you mean" >/dev/null 2>&1 || true

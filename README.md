@@ -70,6 +70,8 @@ Common flags:
 - `--exclude:GLOB` — skip paths matching a glob (`*` and `?`); repeatable.
 - `--format:FMT` — `text` (default), `json`, or `sarif` (lint/check).
 - `--stats` — (lint) also print a per-code count summary.
+- `--max-warnings:N` — (lint) exit non-zero if warnings exceed `N` (CI gate).
+- `--quiet` — show only errors in text output (warnings still counted).
 - `--color` — colorize the human-readable output.
 - `--no-suppress` — ignore inline `# aowlsuggest:ignore` markers.
 - `--pedantic` / `--style:CAT` / `--indent-width:N` — opt in to aowlparser's
@@ -172,7 +174,15 @@ error-severity diagnostic or fails to run — CI-friendly.
 The SARIF output carries **`fixes`**: every diagnostic with a verified auto-fix
 (including the "did you mean" alternatives) emits a SARIF `fix` with a precise
 `deletedRegion` + `insertedContent`, so GitHub renders them as one-click *Apply
-fix* suggestions right in the PR.
+fix* suggestions right in the PR. Each result also carries a
+**`partialFingerprints.primaryLocationLineHash`** derived from the rule id and
+the diagnostic's *line content* (not its line number), so GitHub tracks the same
+alert across commits instead of churning it whenever an unrelated edit shifts the
+line — and an `automationDetails.id` so several uploads don't collide.
+
+CI gates: `--max-warnings:N` makes `lint` exit non-zero when warnings exceed `N`
+(errors always fail); `--quiet` shows only errors in text output (warnings are
+still counted toward the gate).
 
 ### `lsp` and `lsp-server`
 
@@ -242,6 +252,41 @@ bash tests/run.sh        # fix + feature + style tests, 599-file zero-FP proof, 
 The expanded auto-fixes (`unclosed-bracket`, `unmatched-close`, …) are more
 aggressive, but the verify loop keeps the guarantee intact: still **0 changes**
 across the 599 valid files, and **0 files ever worsened** across the 2890.
+
+## Continuous integration
+
+The `lint` command is a drop-in CI gate. For **GitHub code scanning**, emit SARIF
+and upload it — the diagnostics (and their one-click fixes) then appear inline on
+the PR, tracked stably across commits by their fingerprints:
+
+```yaml
+# .github/workflows/lint.yml
+name: aowlsuggest
+on: [push, pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write        # required to upload SARIF
+    steps:
+      - uses: actions/checkout@v4
+      # ... build/obtain aowlparser + aowlsuggest (see their build.sh) ...
+      - name: Lint
+        run: aowlsuggest lint --format:sarif . > aowlsuggest.sarif
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: aowlsuggest.sarif
+```
+
+Prefer a hard pass/fail check instead? Use the exit code:
+
+```sh
+aowlsuggest lint --pedantic --max-warnings:0 .   # nonzero on any error OR warning
+```
+
+Commit a [`.aowlsuggest`](#project-config--aowlsuggest) so the same policy governs
+CI, the CLI, and every editor.
 
 ## Build
 

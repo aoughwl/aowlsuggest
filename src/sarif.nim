@@ -30,6 +30,39 @@ proc offsetToLineCol(starts: seq[int]; off: int): (int, int) =
   let col = off - starts[line - 1]
   result = (line, col)
 
+proc trimmedLine(src: string; starts: seq[int]; line1: int): string =
+  ## The content of 1-based line `line1`, stripped of leading/trailing whitespace
+  ## (spaces, tabs, CR). Manual trim — `strutils.strip` with named args is
+  ## ambiguous under nimony.
+  if line1 < 1 or line1 - 1 >= starts.len: return ""
+  var s = starts[line1 - 1]
+  var e = if line1 < starts.len: starts[line1] else: src.len
+  while e > s and (src[e-1] == '\n' or src[e-1] == '\r' or src[e-1] == ' ' or
+                   src[e-1] == '\t'): dec e
+  while s < e and (src[s] == ' ' or src[s] == '\t'): inc s
+  result = substr(src, s, e - 1)
+
+proc fnv1aHex(s: string): string =
+  ## FNV-1a (32-bit) of `s`, lower-hex. Deterministic and dependency-free — used
+  ## for a stable per-alert fingerprint. Unsigned arithmetic wraps in nimony.
+  var h: uint32 = 2166136261'u32
+  for i in 0 ..< s.len:
+    h = h xor uint32(ord(s[i]))
+    h = h * 16777619'u32
+  const hexd = "0123456789abcdef"
+  result = ""
+  var shift = 28
+  while shift >= 0:
+    result.add hexd[int((h shr uint32(shift)) and 0xF'u32)]
+    shift = shift - 4
+
+proc lineFingerprint(code: string; src: string; starts: seq[int]; line1: int): string =
+  ## A fingerprint that is STABLE when code moves up/down the file: it hashes the
+  ## rule id together with the diagnostic's (trimmed) source line, NOT its line
+  ## number. GitHub code scanning uses this to track the same alert across commits
+  ## instead of churning it on every edit elsewhere in the file.
+  result = fnv1aHex(code & "\x1f" & trimmedLine(src, starts, line1))
+
 proc sarifFixes(d: Diagnostic; file, src: string; starts: seq[int]): string =
   ## The SARIF `fixes` array for `d` (its verified auto-fix candidates), or "" if
   ## there are none. Each candidate becomes one fix with a single replacement.
@@ -98,6 +131,10 @@ proc sarifRun*(files: seq[string]; diagsPerFile: seq[seq[Diagnostic]];
             ",\"startColumn\":" & $(d.col + 1) &
             ",\"endColumn\":" & $(d.endCol + 1) & "}}}]"
       if src.len > 0:
+        # a line-content-based fingerprint so GitHub tracks the alert across
+        # commits even when unrelated edits shift its line number
+        results.add ",\"partialFingerprints\":{\"primaryLocationLineHash\":" &
+          jStr(lineFingerprint(d.code, src, starts, d.line)) & "}"
         let fx = sarifFixes(d, file, src, starts)
         if fx.len > 0: results.add ",\"fixes\":" & fx
       results.add "}"
@@ -108,4 +145,5 @@ proc sarifRun*(files: seq[string]; diagsPerFile: seq[seq[Diagnostic]];
     "\"name\":\"aowlsuggest\"," &
     "\"informationUri\":\"https://github.com/aoughwl/aowlsuggest\"," &
     "\"version\":" & jStr(version) & ",\"rules\":" & rules & "}}," &
+    "\"automationDetails\":{\"id\":\"aowlsuggest/lint/\"}," &
     "\"results\":" & results & "}]}"

@@ -37,6 +37,8 @@ type
     filename: string
     color: bool
     checkFlags: string  ## opt-in aowlparser lint flags (see `--style` / `--pedantic`)
+    maxWarnings: int    ## lint: fail if warnings exceed this; -1 = unlimited
+    quiet: bool         ## suppress warning/hint DISPLAY in text output (still counted)
 
 proc afterColon(s: string): string =
   var i = 0
@@ -298,6 +300,7 @@ proc cmdLint(opts: Options; paths: seq[string]): int =
   else:
     for fi in 0 ..< allFiles.len:
       for i in 0 ..< allDiags[fi].len:
+        if opts.quiet and allDiags[fi][i].severity != sevError: continue
         write stdout, diagLine(allFiles[fi], allDiags[fi][i], opts.color) & "\n"
     if opts.stats and statCodes.len > 0:
       write stdout, "\nby code:\n"
@@ -319,7 +322,12 @@ proc cmdLint(opts: Options; paths: seq[string]): int =
     write stdout, "\n" & $files.len & " file(s) checked, " &
       $filesWithIssues & " with issues: " & $totalErrors & " error(s), " &
       $totalWarnings & " warning(s)" & sup & "\n"
+    if opts.maxWarnings >= 0 and totalWarnings > opts.maxWarnings:
+      write stdout, "exceeded --max-warnings:" & $opts.maxWarnings & " (" &
+        $totalWarnings & " warnings)\n"
+  # CI exit: any error, any run failure, or warnings over the --max-warnings gate
   if totalErrors > 0 or runFailures > 0: return 1
+  if opts.maxWarnings >= 0 and totalWarnings > opts.maxWarnings: return 1
   return 0
 
 # ── check ────────────────────────────────────────────────────────────────────
@@ -354,6 +362,7 @@ proc cmdCheck(opts: Options; file: string): int =
     write stdout, sarifRun(@[displayName], @[diags], aowlsuggestVersion, @[src]) & "\n"
   else:
     for i in 0 ..< diags.len:
+      if opts.quiet and diags[i].severity != sevError: continue
       write stdout, diagLine(displayName, diags[i], opts.color) & "\n"
   if errCount > 0: return 1
   return 0
@@ -439,6 +448,8 @@ proc usage(): int =
   write stderr, "  --dry-run        (fix) show a unified diff without writing (default)\n"
   write stderr, "  --format:FMT     text (default), json, or sarif\n"
   write stderr, "  --stats          (lint) also print a per-code count summary\n"
+  write stderr, "  --max-warnings:N (lint) exit non-zero if warnings exceed N\n"
+  write stderr, "  --quiet          show only errors in text output (warnings still counted)\n"
   write stderr, "  --color          colorize the human-readable output\n"
   write stderr, "  --no-suppress    ignore inline '# aowlsuggest:ignore' markers\n"
   write stderr, "  --stdin          (fix/lsp/check) read source from stdin\n"
@@ -490,7 +501,7 @@ proc main(): int =
   var opts = Options(parserBin: defaultParserBin(), excludes: @[],
                      suppress: true, format: "text", stats: false,
                      doWrite: false, useStdin: false, filename: "stdin",
-                     color: false, checkFlags: "")
+                     color: false, checkFlags: "", maxWarnings: -1, quiet: false)
   var positional: seq[string] = @[]
   let cli = commandLineParams()
   # Discover & apply the project `.aowlsuggest` FIRST (CLI flags override it).
@@ -527,6 +538,15 @@ proc main(): int =
     elif a == "--stats": opts.stats = true
     elif a == "--color": opts.color = true
     elif a == "--no-suppress": opts.suppress = false
+    elif a == "--quiet": opts.quiet = true
+    elif startsWith(a, "--max-warnings:"):
+      let n = afterColon(a)
+      if not validIndentWidth(n):   # reuse: non-negative integer check
+        write stderr, "aowlsuggest: --max-warnings expects a non-negative number\n"
+        return 2
+      var v = 0
+      for k in 0 ..< n.len: v = v * 10 + (ord(n[k]) - ord('0'))
+      opts.maxWarnings = v
     elif a == "--no-config": discard        # handled in the pre-scan above
     elif startsWith(a, "--config:"): discard # handled in the pre-scan above
     elif a == "--pedantic":
