@@ -178,6 +178,7 @@ suggest_only() {  # name | before(printf %b) | expected-code
 suggest_only "switch-block" 'switch x {\n  discard\n}\n' 'foreign-case-block'
 suggest_only "do-while"     'do {\n  discard\n} while (x)\n' 'do-while-loop'
 suggest_only "ruby-do"      'xs.each do |i|\n  echo i\n' 'ruby-block-params'
+suggest_only "c-block-comment" '/* a comment */\nlet x = 5\n' 'c-block-comment'
 
 # --- go-var-notype auto-fix ('var x int' -> 'var x: int') ------------------
 for form in 'var x int|var x: int' 'let y string|let y: string' 'const z f|const z: f' 'var p* int|var p*: int'; do

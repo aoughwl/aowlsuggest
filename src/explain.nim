@@ -90,6 +90,14 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "are yours to write.",
       badExample: "xs.each do |i|\n  echo i", goodExample: "xs.each do (i: int):\n  echo i",
       autofixable: false),
+    CodeInfo(code: "c-block-comment",
+      title: "C-style '/* … */' comment — Nim uses '#[ … ]#'",
+      explanation: "Nim's block comment is '#[ … ]#' (and a line comment is '#'), " &
+        "not the C/C++/Java/JS '/* … */'. NOT auto-fixed: rewriting the delimiters " &
+        "(and checking the body doesn't itself close the block) is a change you " &
+        "should confirm.",
+      badExample: "/* a comment */", goodExample: "#[ a comment ]#",
+      autofixable: false),
     CodeInfo(code: "stray-end",
       title: "Stray 'end' — Nim uses indentation",
       explanation: "'end' is a reserved keyword with no statement form (a " &
@@ -383,7 +391,7 @@ const parserFixCodes* = [
   "enum-member-not-identifier", "invalid-number", "c-style-operator",
   "double-colon", "c-brace-body", "foreign-function-keyword", "go-var-notype",
   "foreign-block-keyword", "foreign-case-block", "do-while-loop",
-  "ruby-block-params"]
+  "ruby-block-params", "c-block-comment"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't
