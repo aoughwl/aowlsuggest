@@ -102,6 +102,21 @@ grep -q 'warning\[redundant-bool-literal\]' <<<"$out" || die "--rule did not ena
 ( cd "$work/rules" && "$AS" check --rule:redundant-bool-literal=loud r.nim >/dev/null 2>&1 )
 [ "$?" = "2" ] || die "--rule with a bad level should exit 2"
 
+echo "== [rules] enables the new opinion lints =="
+printf 'if (x == 5):\n  discard\n' > "$work/rules/op.nim"
+# off by default: nothing without a rule/flag
+out="$(cd "$work/rules" && "$AS" check --no-config op.nim 2>/dev/null)"
+grep -q 'redundant-parens-condition' <<<"$out" && die "redundant-parens must be OFF by default: $out"
+# naming it in [rules] enables+promotes it
+printf '[rules]\nredundant-parens-condition = warning\n' > "$work/rules/.aowlsuggest"
+out="$(cd "$work/rules" && "$AS" check op.nim 2>/dev/null)"
+grep -q 'warning\[redundant-parens-condition\]' <<<"$out" || die "[rules] did not enable redundant-parens: $out"
+# a CLI --rule enables broad-exception and gates it as an error
+printf 'try:\n  discard\nexcept Exception:\n  discard\n' > "$work/rules/be.nim"
+out="$(cd "$work/rules" && "$AS" check --no-config --rule:broad-exception=error be.nim 2>/dev/null)"; rc=$?
+grep -q 'error\[broad-exception\]' <<<"$out" || die "--rule did not enable broad-exception: $out"
+[ "$rc" = "1" ] || die "broad-exception=error should exit 1 (got $rc)"
+
 if [ "$fail" -eq 0 ]; then
   echo "config: PASS — discovery, application, precedence, and graceful degradation"
 else

@@ -217,6 +217,11 @@ suggest_only_flag "float-eq"      'let z = x == 3.14\n'   'float-equality'      
 suggest_only_flag "float-eq-ped"  'let z = x == 3.14\n'   'float-equality'         '--pedantic'
 suggest_only_flag "nil-compare"   'let z = p == nil\n'    'nil-comparison'         '--style:nil-comparison'
 suggest_only_flag "yoda"          'let z = 0 == n\n'      'yoda-condition'         '--style:yoda'
+suggest_only_flag "redundant-parens" 'if (x == 5):\n  discard\n' 'redundant-parens-condition' '--style:redundant-parens'
+suggest_only_flag "empty-string"  'let s = a & ""\n'     'empty-string-concat'    '--style:empty-string'
+suggest_only_flag "debug-echo"    'echo "hi"\n'          'debug-echo'             '--style:debug-echo'
+suggest_only_flag "range-index"   'for i in 0 .. a.len - 1:\n  discard\n' 'manual-range-index' '--style:range-index'
+suggest_only_flag "broad-except"  'try:\n  discard\nexcept Exception:\n  discard\n' 'broad-exception' '--style:broad-exception'
 
 # --- go-var-notype auto-fix ('var x int' -> 'var x: int') ------------------
 for form in 'var x int|var x: int' 'let y string|let y: string' 'const z f|const z: f' 'var p* int|var p*: int'; do

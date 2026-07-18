@@ -186,6 +186,49 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "'0 == x' guards against '=' typos in C; Nim has no such foot-gun (a bare " &
         "'=' isn't a valid condition), so the natural 'x == 0' reads better.",
       badExample: "if 0 == n:", goodExample: "if n == 0:", autofixable: false),
+    CodeInfo(code: "redundant-parens-condition",
+      title: "Parentheses around a whole control-flow condition",
+      explanation: "An OPINION, off by default — enable it per project in a " &
+        "'.aowlsuggest' [rules] section (or '--rule:redundant-parens-condition=…'). " &
+        "Nim needs no parens around an 'if'/'elif'/'while'/'when' condition, so " &
+        "'if (x):' is a C/Java/Python habit. Only the FULLY-wrapping case fires — a " &
+        "load-bearing group like '(let y = f(); y != 0)' or a sub-expression " &
+        "'(a or b) and c' is never flagged.",
+      badExample: "if (x == 5):", goodExample: "if x == 5:", autofixable: false),
+    CodeInfo(code: "empty-string-concat",
+      title: "Concatenating an empty string \"\" is a no-op",
+      explanation: "An OPINION, off by default — enable it per project in a " &
+        "'.aowlsuggest' [rules] section (or '--rule:empty-string-concat=…'). " &
+        "'s & \"\"' and '\"\" & s' add nothing; usually a leftover from an edit or a " &
+        "misplaced stringify. Drop the empty literal and the '&'.",
+      badExample: "let s = name & \"\"", goodExample: "let s = name",
+      autofixable: false),
+    CodeInfo(code: "debug-echo",
+      title: "A bare 'echo' statement (likely a debug print)",
+      explanation: "An OPINION, off by default — enable it per project in a " &
+        "'.aowlsuggest' [rules] section (or '--rule:debug-echo=…'). A project that " &
+        "routes output through a logging facility can flag stray 'echo' statements " &
+        "left in committed code. Fires only on a statement-position 'echo'.",
+      badExample: "echo \"got here\"", goodExample: "debug \"got here\"  # your logger",
+      autofixable: false),
+    CodeInfo(code: "manual-range-index",
+      title: "'0 .. n - 1' — prefer the half-open '0 ..< n'",
+      explanation: "An OPINION, off by default — enable it per project in a " &
+        "'.aowlsuggest' [rules] section (or '--rule:manual-range-index=…'). An " &
+        "inclusive range ending in '<expr> - 1' is exactly Nim's half-open '..< " &
+        "<expr>', which states the intent (a count/length) with no off-by-one to " &
+        "get wrong. Fires only when the range end literally ends in a binary '- 1'.",
+      badExample: "for i in 0 .. a.len - 1:", goodExample: "for i in 0 ..< a.len:",
+      autofixable: false),
+    CodeInfo(code: "broad-exception",
+      title: "Catching or raising the base 'Exception' is too broad",
+      explanation: "An OPINION, off by default — enable it per project in a " &
+        "'.aowlsuggest' [rules] section (or '--rule:broad-exception=…'). 'except " &
+        "Exception' also catches Defects (bugs you should not swallow), and " &
+        "'newException(Exception, …)' gives the caller nothing specific to catch. " &
+        "Prefer 'CatchableError' (or a specific type) on both sides.",
+      badExample: "except Exception:", goodExample: "except CatchableError:",
+      autofixable: false),
     CodeInfo(code: "float-equality",
       title: "Exact float '=='/'!=' is unreliable",
       explanation: "An idiom hint on VALID code (opt-in via '--style:float-equality' " &
@@ -493,7 +536,8 @@ const parserFixCodes* = [
   "extends-inheritance", "yield-from", "async-routine-prefix",
   "redundant-bool-literal", "double-negation", "not-in-precedence",
   "not-compare-precedence", "simplify-boolean-return", "float-equality",
-  "nil-comparison", "yoda-condition"]
+  "nil-comparison", "yoda-condition", "redundant-parens-condition",
+  "empty-string-concat", "debug-echo", "manual-range-index", "broad-exception"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't
