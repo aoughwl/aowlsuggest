@@ -107,6 +107,14 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "placement is a change you should confirm.",
       badExample: "proc f() throws IOError", goodExample: "proc f() {.raises: [IOError].}",
       autofixable: false),
+    CodeInfo(code: "extends-inheritance",
+      title: "'extends' is not Nim — inherit with 'object of Base'",
+      explanation: "Nim expresses inheritance as 'type Foo = object of Base' (or " &
+        "'ref object of Base'), not the Java/TS/Scala 'type Foo extends Base'. NOT " &
+        "auto-fixed: whether the type is a value 'object' or a 'ref object', and " &
+        "where the base goes, is a design choice you should make.",
+      badExample: "type Dog extends Animal = object",
+      goodExample: "type Dog = object of Animal", autofixable: false),
     CodeInfo(code: "stray-end",
       title: "Stray 'end' — Nim uses indentation",
       explanation: "'end' is a reserved keyword with no statement form (a " &
@@ -400,7 +408,8 @@ const parserFixCodes* = [
   "enum-member-not-identifier", "invalid-number", "c-style-operator",
   "double-colon", "c-brace-body", "foreign-function-keyword", "go-var-notype",
   "foreign-block-keyword", "foreign-case-block", "do-while-loop",
-  "ruby-block-params", "c-block-comment", "foreign-routine-clause"]
+  "ruby-block-params", "c-block-comment", "foreign-routine-clause",
+  "extends-inheritance"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't
