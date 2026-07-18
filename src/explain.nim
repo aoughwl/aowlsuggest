@@ -30,6 +30,12 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "rather than assigns — the mirror of assignment-in-condition, and " &
         "almost always a typo for '='.",
       badExample: "let x == 5", goodExample: "let x = 5", autofixable: true),
+    CodeInfo(code: "walrus-in-binding",
+      title: "Walrus ':=' where a Nim binding wants '='",
+      explanation: "':=' is the Pascal/Go assignment operator; a Nim " &
+        "let/const/var binding assigns with a plain '='. (':=' lexes as one " &
+        "operator, distinct from a ':' type annotation.)",
+      badExample: "let x := 5", goodExample: "let x = 5", autofixable: true),
     CodeInfo(code: "else-if-not-elif",
       title: "'else if' is not Nim — use 'elif'",
       explanation: "Nim's condition-chain keyword is 'elif'; 'else' must be " &

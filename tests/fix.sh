@@ -126,6 +126,14 @@ b2="$(cat "$WORK/cb2.nim")"
 "$AS" fix --no-config --write "$WORK/cb2.nim" >/dev/null 2>&1
 [ "$b2" = "$(cat "$WORK/cb2.nim")" ] || { echo "FAIL: comparison-in-binding fix touched a valid comparison"; fail=1; }
 
+# --- walrus-in-binding auto-fix (':=' -> '=') ------------------------------
+for form in 'let x := 5|let x = 5' 'const C := 5|const C = 5' 'var v := 5|var v = 5'; do
+  bad="${form%|*}"; good="${form#*|}"
+  printf '%s\n' "$bad" > "$WORK/w.nim"
+  "$AS" fix --no-config --write "$WORK/w.nim" >/dev/null 2>&1
+  [ "$good" = "$(cat "$WORK/w.nim")" ] || { echo "FAIL: walrus fix '$bad' -> $(cat "$WORK/w.nim")"; fail=1; }
+done
+
 # --- else-if-not-elif auto-fix ('else if' -> 'elif') -----------------------
 printf 'if a:\n  discard\nelse if b:\n  discard\n' > "$WORK/ei.nim"
 "$AS" fix --no-config --write "$WORK/ei.nim" >/dev/null 2>&1
