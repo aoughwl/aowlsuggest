@@ -59,6 +59,15 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "reformat only you should confirm.",
       badExample: "fn main() {\n  echo 1\n}", goodExample: "proc main() =\n  echo 1",
       autofixable: false),
+    CodeInfo(code: "foreign-block-keyword",
+      title: "'class' / 'struct' / 'namespace' … is not a Nim keyword",
+      explanation: "Nim declares a type with 'type Name = object' (or ref object / " &
+        "enum / concept), not the 'class'/'struct'/'interface'/'impl'/'trait' block " &
+        "of another language, and a module is a FILE — there is no 'namespace'/" &
+        "'module' block. NOT auto-fixed: mapping the '{ }' block to a 'type … = " &
+        "object' (or an import) is a design choice only you should make.",
+      badExample: "class Foo {\n  x: int\n}", goodExample: "type Foo = object\n  x: int",
+      autofixable: false),
     CodeInfo(code: "stray-end",
       title: "Stray 'end' — Nim uses indentation",
       explanation: "'end' is a reserved keyword with no statement form (a " &
@@ -350,7 +359,8 @@ const parserFixCodes* = [
   "missing-type-equals", "expected-condition", "expected-in", "of-without-value",
   "expected-indented-body", "func-in-type-description", "empty-variant-branch",
   "enum-member-not-identifier", "invalid-number", "c-style-operator",
-  "double-colon", "c-brace-body", "foreign-function-keyword", "go-var-notype"]
+  "double-colon", "c-brace-body", "foreign-function-keyword", "go-var-notype",
+  "foreign-block-keyword"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't

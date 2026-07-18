@@ -159,6 +159,13 @@ ffo="$("$AS" fix --no-config --write "$WORK/ff.nim" 2>&1)"
 [ "$ffb" = "$(cat "$WORK/ff.nim")" ] || { echo "FAIL: foreign-function-keyword was auto-applied (must be suggestion-only)"; fail=1; }
 grep -q 'foreign-function-keyword' <<<"$ffo" || { echo "FAIL: foreign-function-keyword suggestion not surfaced"; fail=1; }
 
+# --- foreign-block-keyword is SUGGESTION-ONLY (never auto-applied) ---------
+printf 'class Foo {\n  x: int\n}\n' > "$WORK/fb.nim"
+fbb="$(cat "$WORK/fb.nim")"
+fbo="$("$AS" fix --no-config --write "$WORK/fb.nim" 2>&1)"
+[ "$fbb" = "$(cat "$WORK/fb.nim")" ] || { echo "FAIL: foreign-block-keyword was auto-applied (must be suggestion-only)"; fail=1; }
+grep -q 'foreign-block-keyword' <<<"$fbo" || { echo "FAIL: foreign-block-keyword suggestion not surfaced"; fail=1; }
+
 # --- go-var-notype auto-fix ('var x int' -> 'var x: int') ------------------
 for form in 'var x int|var x: int' 'let y string|let y: string' 'const z f|const z: f' 'var p* int|var p*: int'; do
   bad="${form%|*}"; good="${form#*|}"
