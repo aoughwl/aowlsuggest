@@ -152,6 +152,13 @@ printf 'let mut = 5\n' > "$WORK/mk2.nim"
 "$AS" fix --no-config --write "$WORK/mk2.nim" >/dev/null 2>&1
 [ "let mut = 5" = "$(cat "$WORK/mk2.nim")" ] || { echo "FAIL: mut fix touched a variable named mut"; fail=1; }
 
+# --- foreign-function-keyword is SUGGESTION-ONLY (never auto-applied) ------
+printf 'fn main() {\n  discard\n}\n' > "$WORK/ff.nim"
+ffb="$(cat "$WORK/ff.nim")"
+ffo="$("$AS" fix --no-config --write "$WORK/ff.nim" 2>&1)"
+[ "$ffb" = "$(cat "$WORK/ff.nim")" ] || { echo "FAIL: foreign-function-keyword was auto-applied (must be suggestion-only)"; fail=1; }
+grep -q 'foreign-function-keyword' <<<"$ffo" || { echo "FAIL: foreign-function-keyword suggestion not surfaced"; fail=1; }
+
 # --- go-var-notype auto-fix ('var x int' -> 'var x: int') ------------------
 for form in 'var x int|var x: int' 'let y string|let y: string' 'const z f|const z: f' 'var p* int|var p*: int'; do
   bad="${form%|*}"; good="${form#*|}"

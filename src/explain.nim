@@ -50,6 +50,15 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "braces into an indented block is a reformat only you should confirm.",
       badExample: "proc f() { echo 1 }", goodExample: "proc f() =\n  echo 1",
       autofixable: false),
+    CodeInfo(code: "foreign-function-keyword",
+      title: "'fn' / 'function' / 'fun' is not a Nim keyword — use 'proc'",
+      explanation: "Nim defines a routine with 'proc' (or func/method/…), not the " &
+        "Rust 'fn', JS 'function' or Kotlin 'fun' keyword, and uses an indented " &
+        "body after '=' rather than a '{ }' block. NOT auto-fixed: 'proc name() = " &
+        "<indented body>' replaces both the keyword and the whole brace body, a " &
+        "reformat only you should confirm.",
+      badExample: "fn main() {\n  echo 1\n}", goodExample: "proc main() =\n  echo 1",
+      autofixable: false),
     CodeInfo(code: "stray-end",
       title: "Stray 'end' — Nim uses indentation",
       explanation: "'end' is a reserved keyword with no statement form (a " &
@@ -341,7 +350,7 @@ const parserFixCodes* = [
   "missing-type-equals", "expected-condition", "expected-in", "of-without-value",
   "expected-indented-body", "func-in-type-description", "empty-variant-branch",
   "enum-member-not-identifier", "invalid-number", "c-style-operator",
-  "double-colon", "c-brace-body"]
+  "double-colon", "c-brace-body", "foreign-function-keyword", "go-var-notype"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't
