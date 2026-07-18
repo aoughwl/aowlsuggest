@@ -43,6 +43,13 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "are definable operators and 'and'/'or' bind at a different precedence, " &
         "so the rewrite is offered as a suggestion for you to confirm.",
       badExample: "if a && b:", goodExample: "if a and b:", autofixable: false),
+    CodeInfo(code: "redundant-semicolon",
+      title: "Redundant trailing ';'",
+      explanation: "Nim separates statements by newline, so a trailing ';' at " &
+        "the end of a statement is redundant. Opt in with --style:semicolons; " &
+        "aowlsuggest deletes it. Only a STATEMENT-LEVEL ';' is flagged — a ';' " &
+        "inside (...) is a parameter separator and is left alone.",
+      badExample: "let x = 5;", goodExample: "let x = 5", autofixable: true),
     CodeInfo(code: "mismatched-bracket",
       title: "Closing bracket does not match its opener",
       explanation: "A ')' / ']' / '}' closes a different kind of bracket than " &

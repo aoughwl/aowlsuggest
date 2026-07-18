@@ -68,6 +68,7 @@ proc styleFlag(cat: string; ok: var bool): string =
   of "crlf", "newline-crlf": "--newline:crlf"
   of "bom": "--bom:reject"
   of "c-operators", "c-ops": "--c-operators:warn"
+  of "semicolons", "semicolon": "--semicolons:warn"
   of "indent-consistency", "indent": "--indent-consistency"
   else:
     ok = false
@@ -596,7 +597,7 @@ proc main(): int =
       let f = styleFlag(cat, ok)
       if not ok:
         write stderr, "aowlsuggest: unknown --style category: " & cat &
-          " (trailing-whitespace, final-newline, lf, crlf, bom, c-operators, indent-consistency)\n"
+          " (trailing-whitespace, final-newline, lf, crlf, bom, c-operators, semicolons, indent-consistency)\n"
         return 2
       addFlag(opts.checkFlags, f)
     elif startsWith(a, "--indent-width:"):

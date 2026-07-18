@@ -146,6 +146,18 @@ grep -q 'help: add the closing backtick' <<<"$btout" || { echo "FAIL: no backtic
 "$AS" fix --no-config --write "$WORK/bt.nim" >/dev/null 2>&1
 [ "$(printf 'let `a = 1\n')" = "$(cat "$WORK/bt.nim")" ] || { echo "FAIL: backtick was wrongly auto-applied"; fail=1; }
 
+# --- redundant-semicolon: opt-in auto-fix, param-separator safe ------------
+printf 'let x = 5;\necho x\n' > "$WORK/sc.nim"
+grep -q 'redundant-semicolon' <<<"$("$AS" check --no-config "$WORK/sc.nim" 2>&1)" && {
+  echo "FAIL: redundant-semicolon must be OFF by default"; fail=1; }
+"$AS" fix --no-config --style:semicolons --write "$WORK/sc.nim" >/dev/null 2>&1
+[ "let x = 5" = "$(sed -n '1p' "$WORK/sc.nim")" ] || { echo "FAIL: trailing ; not removed: $(sed -n '1p' "$WORK/sc.nim")"; fail=1; }
+# a ';' param separator inside a multi-line proc() must be left ALONE
+printf 'proc f(a: int;\n       b: int) = discard\n' > "$WORK/sc2.nim"
+sc2="$(cat "$WORK/sc2.nim")"
+"$AS" fix --no-config --style:semicolons --write "$WORK/sc2.nim" >/dev/null 2>&1
+[ "$sc2" = "$(cat "$WORK/sc2.nim")" ] || { echo "FAIL: param-separator ; was wrongly removed"; fail=1; }
+
 # --- c-style-operator: opt-in, SUGGESTION-only (&&/|| are definable) -------
 printf 'if a && b:\n  discard\n' > "$WORK/co.nim"
 # off by default

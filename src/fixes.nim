@@ -277,6 +277,16 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
       result.edit = TextEdit(startOff: 0, endOff: 3, replacement: "",
                              label: "strip the leading UTF-8 BOM")
       result.hint = "remove the byte-order mark"
+  of "redundant-semicolon":
+    # Delete a redundant statement-level trailing `;` (opt-in --style:semicolons).
+    # aowlparser only flags a depth-0 one, so deleting it can't break a separator.
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    let b = lineColToOffset(src, starts, d.line, d.endCol)
+    if b == a + 1 and charAt(src, a) == ';':
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: a, endOff: b, replacement: "",
+                             label: "remove the redundant ';'")
+      result.hint = "remove the ';'"
   # NOTE: `unterminated-backtick` is deliberately NOT auto-fixed. A backtick
   # identifier can contain spaces and operators (`` `foo bar` ``, `` `+` ``), so
   # where the closing backtick belongs is genuinely ambiguous: appending it at the
