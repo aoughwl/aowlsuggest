@@ -98,6 +98,15 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "should confirm.",
       badExample: "/* a comment */", goodExample: "#[ a comment ]#",
       autofixable: false),
+    CodeInfo(code: "foreign-routine-clause",
+      title: "'throws' / 'where' routine clause — Nim uses a pragma / '[T: …]'",
+      explanation: "Nim declares a routine's raised effects with a pragma " &
+        "('{.raises: [IOError].}'), not a Java 'throws' clause, and a generic " &
+        "constraint goes in the brackets ('proc f[T: Constraint]()'), not a " &
+        "Rust/Swift/C# 'where' clause. NOT auto-fixed: the pragma or constraint " &
+        "placement is a change you should confirm.",
+      badExample: "proc f() throws IOError", goodExample: "proc f() {.raises: [IOError].}",
+      autofixable: false),
     CodeInfo(code: "stray-end",
       title: "Stray 'end' — Nim uses indentation",
       explanation: "'end' is a reserved keyword with no statement form (a " &
@@ -391,7 +400,7 @@ const parserFixCodes* = [
   "enum-member-not-identifier", "invalid-number", "c-style-operator",
   "double-colon", "c-brace-body", "foreign-function-keyword", "go-var-notype",
   "foreign-block-keyword", "foreign-case-block", "do-while-loop",
-  "ruby-block-params", "c-block-comment"]
+  "ruby-block-params", "c-block-comment", "foreign-routine-clause"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't
