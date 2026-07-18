@@ -162,6 +162,16 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "the opposite comparison, 'x != y' (and 'not x != y' means 'x == y'). NOT " &
         "auto-fixed: comparing '(not x)' against a bool is occasionally intended.",
       badExample: "if not a == b:", goodExample: "if a != b:", autofixable: false),
+    CodeInfo(code: "simplify-boolean-return",
+      title: "'if c: return true else: return false' is just 'return c'",
+      explanation: "An idiom hint on VALID code (opt-in via '--style:idioms'). An " &
+        "if/else whose two branches only 'return true' / 'return false' (or " &
+        "'result = true' / 'result = false') is returning the condition itself: " &
+        "collapse it to 'return c'. When the bools are swapped ('return false' " &
+        "then 'return true') it is 'return not (c)'. NOT auto-fixed: deleting the " &
+        "block and re-indenting the condition is a multi-line rewrite you confirm.",
+      badExample: "if c:\n  return true\nelse:\n  return false",
+      goodExample: "return c", autofixable: false),
     CodeInfo(code: "float-equality",
       title: "Exact float '=='/'!=' is unreliable",
       explanation: "An idiom hint on VALID code (opt-in via '--style:float-equality' " &
@@ -468,7 +478,7 @@ const parserFixCodes* = [
   "ruby-block-params", "c-block-comment", "foreign-routine-clause",
   "extends-inheritance", "yield-from", "async-routine-prefix",
   "redundant-bool-literal", "double-negation", "not-in-precedence",
-  "not-compare-precedence", "float-equality"]
+  "not-compare-precedence", "simplify-boolean-return", "float-equality"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't

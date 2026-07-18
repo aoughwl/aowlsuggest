@@ -212,6 +212,7 @@ suggest_only_flag "bool-ne-false" 'let z = ok != false\n' 'redundant-bool-litera
 suggest_only_flag "double-neg"    'let z = not not ok\n'  'double-negation'        '--style:idioms'
 suggest_only_flag "not-in-prec"   'let z = not k in seen\n' 'not-in-precedence'     '--style:idioms'
 suggest_only_flag "not-cmp-prec"  'let z = not a == b\n'    'not-compare-precedence' '--style:idioms'
+suggest_only_flag "bool-return"   'proc f(c: bool): bool =\n  if c:\n    return true\n  else:\n    return false\n' 'simplify-boolean-return' '--style:idioms'
 suggest_only_flag "float-eq"      'let z = x == 3.14\n'   'float-equality'         '--style:float-equality'
 suggest_only_flag "float-eq-ped"  'let z = x == 3.14\n'   'float-equality'         '--pedantic'
 
