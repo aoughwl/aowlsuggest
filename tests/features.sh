@@ -97,6 +97,18 @@ grep -q 'auto-fixable: yes' <<<"$("$AS" explain assignment-in-condition 2>&1)" |
   echo "FAIL: explain missing auto-fixable line"; fail=1; }
 grep -q 'auto-fixable: no' <<<"$("$AS" explain expected-condition 2>&1)" || {
   echo "FAIL: explain should mark expected-condition non-auto-fixable"; fail=1; }
+
+# --- completeness: EVERY known code carries guidance -----------------------
+# no diagnostic should ever be a bare error with no advice — an auto-fix,
+# aowlparser's own fix hint, or a knowledge-base fallback suggestion.
+"$AS" explain --format:json 2>/dev/null | python3 -c '
+import json,sys
+kb=json.load(sys.stdin)
+bare=[c["code"] for c in kb if not c.get("guidance")]
+if bare:
+    print("bare codes without guidance:", bare); sys.exit(1)
+sys.exit(0)
+' || { echo "FAIL: some diagnostic codes have no guidance"; fail=1; }
 "$AS" explain no-such-code >/dev/null 2>&1 && { echo "FAIL: explain unknown code should fail"; fail=1; }
 grep -q 'assignment-in-condition' <<<"$("$AS" explain 2>&1)" || { echo "FAIL: explain list"; fail=1; }
 

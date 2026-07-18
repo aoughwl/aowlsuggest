@@ -116,6 +116,27 @@ vsout="$(printf 'let x = 1\n' | "$AS" fix --stdin 2>/dev/null)"
 lsout="$(printf 'if x = 5:\n  discard\n' | "$AS" lsp --stdin --filename:buf.nim 2>&1)"
 grep -q 'buf.nim' <<<"$lsout" || { echo "FAIL: stdin lsp did not use the filename in the URI"; fail=1; }
 
+# --- unterminated-backtick is a SUGGESTION, never auto-applied -------------
+# where the closing backtick belongs is ambiguous (idents can hold spaces/ops),
+# so aowlsuggest suggests it rather than guessing.
+printf 'let `a = 1\n' > "$WORK/bt.nim"
+btout="$("$AS" fix --no-config "$WORK/bt.nim" 2>&1)"
+grep -q 'help: add the closing backtick' <<<"$btout" || { echo "FAIL: no backtick suggestion"; fail=1; }
+"$AS" fix --no-config --write "$WORK/bt.nim" >/dev/null 2>&1
+[ "$(printf 'let `a = 1\n')" = "$(cat "$WORK/bt.nim")" ] || { echo "FAIL: backtick was wrongly auto-applied"; fail=1; }
+
+# --- KB fallback suggestion for a bare value-error -------------------------
+# aowlparser attaches no `fix` to invalid-escape-sequence; aowlsuggest supplies a
+# knowledge-base hint so the diagnostic still tells you what to do.
+printf 'let s = "a\\qb"\n' > "$WORK/esc.nim"
+esout="$("$AS" fix --no-config "$WORK/esc.nim" 2>&1)"
+grep -q 'invalid-escape-sequence' <<<"$esout" || { echo "FAIL: escape diag missing"; fail=1; }
+grep -q 'help: use a valid escape' <<<"$esout" || { echo "FAIL: no KB fallback suggestion for bare value-error"; fail=1; }
+# it stays a SUGGESTION — never auto-applied (the file is untouched by --write)
+before="$(cat "$WORK/esc.nim")"
+"$AS" fix --no-config --write "$WORK/esc.nim" >/dev/null 2>&1
+[ "$before" = "$(cat "$WORK/esc.nim")" ] || { echo "FAIL: value-error was wrongly auto-applied"; fail=1; }
+
 # --- version ---------------------------------------------------------------
 "$AS" version 2>&1 | grep -q 'aowlsuggest ' || { echo "FAIL: version output"; fail=1; }
 

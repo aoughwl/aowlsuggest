@@ -103,8 +103,12 @@ guarded, and **verified** before it is kept:
 | `line-ending` | rewrite the EOL to the requested LF/CRLF *(style)* |
 | `bom-rejected` | strip a leading UTF-8 byte-order mark *(style)* |
 
-Everything else with a repair hint is surfaced as a **suggestion** (needs human
-judgement), never auto-applied. `--dry-run` (the default) prints a unified diff;
+Everything else is surfaced as a **suggestion** (needs human judgement), never
+auto-applied — and **no diagnostic is ever left bare**: the suggestion text is
+aowlparser's own `fix` hint when it gave one, otherwise a crisp fallback from
+aowlsuggest's knowledge base (e.g. a bad escape, an out-of-range number, an
+unterminated backtick). A tested invariant guarantees every known code carries
+guidance. `--dry-run` (the default) prints a unified diff;
 `--write` applies it; `--check` (gofmt -l / prettier --check style) writes
 nothing and just **exits non-zero if any fix is available** — the CI gate for
 "this code is already clean" (combine with `--pedantic` to enforce style too).

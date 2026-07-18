@@ -138,8 +138,10 @@ proc knowledgeBase*(): seq[CodeInfo] =
       autofixable: true),
     CodeInfo(code: "unterminated-backtick",
       title: "Accent-quoted identifier not closed",
-      explanation: "A `` ` ``-quoted identifier has no closing backtick.",
-      badExample: "let `a = 1", goodExample: "let `a b` = 1", autofixable: false),
+      explanation: "A `` ` ``-quoted identifier has no closing backtick. Not " &
+        "auto-fixed: a backtick identifier may hold spaces and operators, so " &
+        "where the closer belongs is ambiguous — aowlsuggest suggests it instead.",
+      badExample: "let `a = 1", goodExample: "let `a` = 1", autofixable: false),
     CodeInfo(code: "invalid-escape-sequence",
       title: "Invalid string escape",
       explanation: "A backslash escape in a string is not a recognised sequence.",
@@ -237,3 +239,62 @@ proc shortDescription*(code: string): string =
   var f = false
   let info = lookup(code, f)
   result = if f: info.title else: code
+
+proc hasGuidance*(code: string): bool =
+  ## Whether a diagnostic of this code will ALWAYS carry something actionable —
+  ## an auto-fix, aowlparser's own `fix` hint, or a KB fallback suggestion. The
+  ## completeness invariant (tested): no known code should be a bare diagnostic
+  ## with no advice. A new aowlparser code that lands here without guidance is a
+  ## signal to add a suggestion for it.
+  var f = false
+  let info = lookup(code, f)
+  if not f: return false
+  if info.autofixable: return true
+  if suggestionFor(code).len > 0: return true
+  for i in 0 ..< parserFixCodes.len:
+    if parserFixCodes[i] == code: return true
+  return false
+
+const parserFixCodes* = [
+  ## Codes aowlparser itself attaches a `fix` hint to (so they always surface as
+  ## a suggestion even without a KB entry). Kept in sync with aowlparser's
+  ## emission; used only by `hasGuidance` for the completeness invariant.
+  "assignment-in-condition", "expected-colon", "missing-routine-equals",
+  "missing-type-equals", "expected-condition", "expected-in", "of-without-value",
+  "expected-indented-body", "func-in-type-description", "empty-variant-branch",
+  "enum-member-not-identifier", "invalid-number"]
+
+proc suggestionFor*(code: string): string =
+  ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't
+  ## attach a `fix` to (a bad escape, an out-of-range number, an illegal byte).
+  ## aowlsuggest surfaces this as a fallback suggestion so no diagnostic is left
+  ## without guidance — but only when aowlparser itself gave none (its own fix is
+  ## context-specific and always wins). Nothing here is auto-APPLIED: these are
+  ## repairs only a human can make, so they stay suggestions by construction.
+  case code
+  of "unterminated-backtick":
+    "add the closing backtick (`` ` ``) right after the identifier name"
+  of "unknown-byte":
+    "remove or replace the illegal byte"
+  of "invalid-identifier":
+    "identifiers start with a letter or '_' and can't contain that character"
+  of "invalid-escape-sequence":
+    "use a valid escape, e.g. \\n \\t \\r \\\\ \\\" or \\xNN (or a raw string r\"…\")"
+  of "invalid-unicode-escape":
+    "write a unicode escape as \\uXXXX (four hex digits) or \\u{…}"
+  of "invalid-character-literal":
+    "a char literal holds exactly one character, e.g. 'a' or '\\n'"
+  of "number-out-of-range":
+    "the literal exceeds its type's range — use a wider type or a smaller value"
+  of "identifier-expected":
+    "a name is required here — provide a valid identifier"
+  of "expression-expected":
+    "a value is missing — supply an expression (or delete the stray operator/comma)"
+  of "mixed-indent":
+    "indent with only spaces or only tabs on a line, never both"
+  of "indent-width":
+    "indent by a consistent multiple (e.g. 2 spaces per level)"
+  of "indent-consistency":
+    "match the file's indent step — keep the same spaces-per-level throughout"
+  else:
+    ""

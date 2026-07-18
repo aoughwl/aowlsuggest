@@ -11,7 +11,7 @@
 ## never auto-applied.
 
 import std/strutils
-import contract, textedit
+import contract, textedit, explain
 
 type
   FixKind* = enum
@@ -255,16 +255,31 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
       result.edit = TextEdit(startOff: 0, endOff: 3, replacement: "",
                              label: "strip the leading UTF-8 BOM")
       result.hint = "remove the byte-order mark"
+  # NOTE: `unterminated-backtick` is deliberately NOT auto-fixed. A backtick
+  # identifier can contain spaces and operators (`` `foo bar` ``, `` `+` ``), so
+  # where the closing backtick belongs is genuinely ambiguous: appending it at the
+  # line's end turns `` let `a = 1 `` into the nonsense identifier `` `a = 1` ``,
+  # which the (syntax-only) checker happily accepts — a fix that passes
+  # verification yet means something the author never wrote. It stays a suggestion
+  # (see `explain.suggestionFor`).
   else:
     discard
 
 proc planFix*(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
-  ## The preferred repair for `d`: its auto edit if one exists, else a suggestion
-  ## (when aowlparser attached a hint), else nothing.
+  ## The preferred repair for `d`: its auto edit if one exists, else a suggestion.
+  ## The suggestion text is aowlparser's own `fix` hint when it gave one (it is
+  ## context-specific and authoritative); otherwise a crisp fallback from the
+  ## knowledge base, so every diagnostic carries guidance — nothing is left bare.
   result = autoEdit(d, src, starts)
-  if result.kind == fkNone and d.fix.len > 0:
-    result.kind = fkSuggestion
-    result.hint = d.fix
+  if result.kind == fkNone:
+    if d.fix.len > 0:
+      result.kind = fkSuggestion
+      result.hint = d.fix
+    else:
+      let kb = suggestionFor(d.code)
+      if kb.len > 0:
+        result.kind = fkSuggestion
+        result.hint = kb
 
 proc candidateFixes*(d: Diagnostic; src: string; starts: seq[int]): seq[PlannedFix] =
   ## All plausible auto edits for `d`, most-preferred first — the "did you mean"

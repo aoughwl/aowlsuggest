@@ -172,7 +172,12 @@ proc fixOne(opts: Options; file: string; useStdin: bool; displayName: string): i
     if d.severity == sevError: inc remainingErrors
     let plan = planFix(d, outcome.fixed, starts)
     if plan.kind == fkSuggestion:
-      suggestions.add diagLine(displayName, d, opts.color)
+      # diagLine renders aowlparser's own `fix` hint; when it gave none, append
+      # the knowledge-base fallback hint planFix supplied so the line still helps.
+      var line = diagLine(displayName, d, opts.color)
+      if d.fix.len == 0 and plan.hint.len > 0:
+        line.add "\n  help: " & plan.hint
+      suggestions.add line
   if opts.checkMode:
     # gofmt -l / prettier --check: report, never write. Exit nonzero if unclean.
     if outcome.changed:
@@ -414,7 +419,8 @@ proc cmdExplain(opts: Options; codeArg: string): int =
       for i in 0 ..< kb.len:
         if i > 0: s.add ","
         s.add "{\"code\":" & jStr(kb[i].code) & ",\"title\":" & jStr(kb[i].title) &
-          ",\"autofixable\":" & (if kb[i].autofixable: "true" else: "false") & "}"
+          ",\"autofixable\":" & (if kb[i].autofixable: "true" else: "false") &
+          ",\"guidance\":" & (if hasGuidance(kb[i].code): "true" else: "false") & "}"
       s.add "]"
       write stdout, s & "\n"
     else:
