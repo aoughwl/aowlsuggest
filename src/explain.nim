@@ -36,6 +36,13 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "let/const/var binding assigns with a plain '='. (':=' lexes as one " &
         "operator, distinct from a ':' type annotation.)",
       badExample: "let x := 5", goodExample: "let x = 5", autofixable: true),
+    CodeInfo(code: "double-colon",
+      title: "'::' scope resolution — Nim qualifies with '.'",
+      explanation: "'::' (a C++ scope-resolution habit, `std::vector`) is not " &
+        "valid Nim. NOT auto-fixed: the intended repair is '.' (qualify a name, " &
+        "`std.vector`) or a single ':' (a mistyped annotation) — only you know " &
+        "which, so it is offered as a suggestion.",
+      badExample: "std::vector", goodExample: "std.vector", autofixable: false),
     CodeInfo(code: "arrow-return-type",
       title: "'->' return-type arrow — Nim uses ': type'",
       explanation: "Nim declares a routine's return type after a colon, not " &
@@ -300,7 +307,8 @@ const parserFixCodes* = [
   "assignment-in-condition", "expected-colon", "missing-routine-equals",
   "missing-type-equals", "expected-condition", "expected-in", "of-without-value",
   "expected-indented-body", "func-in-type-description", "empty-variant-branch",
-  "enum-member-not-identifier", "invalid-number", "c-style-operator"]
+  "enum-member-not-identifier", "invalid-number", "c-style-operator",
+  "double-colon"]
 
 proc suggestionFor*(code: string): string =
   ## A crisp, actionable hint for the lexer VALUE errors that aowlparser doesn't
