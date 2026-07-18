@@ -24,6 +24,12 @@ proc knowledgeBase*(): seq[CodeInfo] =
       explanation: "A bare '=' at the top level of an if/elif/while/when " &
         "condition assigns rather than compares — almost always a typo for '=='.",
       badExample: "if x = 5:", goodExample: "if x == 5:", autofixable: true),
+    CodeInfo(code: "comparison-in-binding",
+      title: "Comparison '==' where an assignment was meant",
+      explanation: "A '==' where a let/const binding's '=' belongs compares " &
+        "rather than assigns — the mirror of assignment-in-condition, and " &
+        "almost always a typo for '='.",
+      badExample: "let x == 5", goodExample: "let x = 5", autofixable: true),
     CodeInfo(code: "mismatched-bracket",
       title: "Closing bracket does not match its opener",
       explanation: "A ')' / ']' / '}' closes a different kind of bracket than " &

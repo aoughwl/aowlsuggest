@@ -116,6 +116,16 @@ vsout="$(printf 'let x = 1\n' | "$AS" fix --stdin 2>/dev/null)"
 lsout="$(printf 'if x = 5:\n  discard\n' | "$AS" lsp --stdin --filename:buf.nim 2>&1)"
 grep -q 'buf.nim' <<<"$lsout" || { echo "FAIL: stdin lsp did not use the filename in the URI"; fail=1; }
 
+# --- comparison-in-binding auto-fix (mirror of assignment-in-condition) ----
+printf 'let x == 5\n' > "$WORK/cb.nim"
+"$AS" fix --no-config --write "$WORK/cb.nim" >/dev/null 2>&1
+[ "$(printf 'let x = 5\n')" = "$(cat "$WORK/cb.nim")" ] || { echo "FAIL: comparison-in-binding not fixed: $(cat "$WORK/cb.nim")"; fail=1; }
+# must NOT touch a real comparison in the value
+printf 'let y = 1\nlet z = y == 2\n' > "$WORK/cb2.nim"
+b2="$(cat "$WORK/cb2.nim")"
+"$AS" fix --no-config --write "$WORK/cb2.nim" >/dev/null 2>&1
+[ "$b2" = "$(cat "$WORK/cb2.nim")" ] || { echo "FAIL: comparison-in-binding fix touched a valid comparison"; fail=1; }
+
 # --- unterminated-backtick is a SUGGESTION, never auto-applied -------------
 # where the closing backtick belongs is ambiguous (idents can hold spaces/ops),
 # so aowlsuggest suggests it rather than guessing.

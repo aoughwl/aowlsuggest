@@ -83,6 +83,15 @@ proc autoEdit(d: Diagnostic; src: string; starts: seq[int]): PlannedFix =
       result.edit = TextEdit(startOff: a, endOff: b, replacement: "==",
                              label: "change '=' to '=='")
       result.hint = "did you mean '=='?"
+  of "comparison-in-binding":
+    # The mirror of the above: the span is the offending '=='. Replace it with '='.
+    let a = lineColToOffset(src, starts, d.line, d.col)
+    let b = lineColToOffset(src, starts, d.line, d.endCol)
+    if b == a + 2 and charAt(src, a) == '=' and charAt(src, a + 1) == '=':
+      result.kind = fkAuto
+      result.edit = TextEdit(startOff: a, endOff: b, replacement: "=",
+                             label: "change '==' to '='")
+      result.hint = "did you mean '='?"
   of "mismatched-bracket":
     # The span is one wrong closing bracket; swap it for the closer that matches
     # the opener named in the message ("']' does not match '('").
