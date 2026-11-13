@@ -1,5 +1,5 @@
-## walk.nim — expand a mix of file and directory arguments into a concrete list
-## of `.nim` files, honouring `--exclude` glob patterns. Purely filesystem work;
+## walk.aowl — expand a mix of file and directory arguments into a concrete list
+## of `.aowl` files, honouring `--exclude` glob patterns. Purely filesystem work;
 ## it never opens or interprets a file's contents.
 
 import std/[os, dirs, paths, strutils]
@@ -25,7 +25,7 @@ proc globMatch*(pat, s: string): bool =
 
 proc baseName(path: string): string =
   var i = path.len - 1
-  while i >= 0 and path[i] != '/':
+  while i >= 0 and path[i] != '/' and path[i] != '\\':
     dec i
   result = substr(path, i + 1, path.len - 1)
 
@@ -37,14 +37,20 @@ proc isExcluded*(path: string; excludes: seq[string]): bool =
       return true
   return false
 
+proc fwdSlashes(s: string): string =
+  ## Directory iteration yields native separators; report paths with '/'.
+  result = ""
+  for i in 0 ..< s.len:
+    if s[i] == '\\': result.add '/' else: result.add s[i]
+
 proc walkInto(dir: string; excludes: seq[string]; acc: var seq[string]) =
-  ## Recurse a directory, collecting non-excluded `.nim` files. Excluded
+  ## Recurse a directory, collecting non-excluded `.aowl` files. Excluded
   ## directories are pruned (not descended). Symlinks are not followed.
   if isExcluded(dir, excludes): return
   var entries: seq[(bool, string)] = @[]   # (isDir, path)
   try:
     for kind, p in walkDir(path(dir)):
-      let ps = $p
+      let ps = fwdSlashes($p)
       if kind == pcDir:
         entries.add (true, ps)
       elif kind == pcFile:
@@ -56,12 +62,12 @@ proc walkInto(dir: string; excludes: seq[string]; acc: var seq[string]) =
     if isDir:
       walkInto(ps, excludes, acc)
     else:
-      if endsWith(ps, ".nim") and not isExcluded(ps, excludes):
+      if endsWith(ps, ".aowl") and not isExcluded(ps, excludes):
         acc.add ps
 
 proc collectFiles*(paths: seq[string]; excludes: seq[string]): seq[string] =
   ## Expand `paths` (files and/or directories) into a sorted, de-duplicated list
-  ## of `.nim` files. An explicit file argument is included even if it is
+  ## of `.aowl` files. An explicit file argument is included even if it is
   ## excluded (the user named it directly); directory contents honour excludes.
   var acc: seq[string] = @[]
   for i in 0 ..< paths.len:

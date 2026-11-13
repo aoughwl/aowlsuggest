@@ -1,0 +1,14 @@
+## A closure in a tuple: the tuple type's son is the lambda's declaration, read as a declaration.
+import std/syncio
+
+proc named(k: int): tuple[get: proc(): int {.closure.}, n: int] =
+  (get: proc(): int {.closure.} = k, n: k + 1)
+let t2 = named(5)
+echo t2.get(), " ", t2.n
+
+proc plain(): int =
+  var n = 3
+  var t = (proc(): int {.closure.} = n, 5)
+  n = 4
+  t[0]() + t[1]
+echo plain()

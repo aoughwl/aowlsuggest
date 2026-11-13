@@ -1,0 +1,12 @@
+# A closure in the body of a loop over an iterator with several yields: one routine per copy.
+import std/syncio
+iterator two(): int =
+  yield 1
+  yield 2
+proc main() =
+  for v in two():
+    var q = v
+    let f = proc() {.closure.} = q = 5
+    f()
+    echo "iter ", q
+main()

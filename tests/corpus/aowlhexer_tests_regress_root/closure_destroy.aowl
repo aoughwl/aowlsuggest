@@ -1,0 +1,151 @@
+import std/syncio
+type
+  Trk = object
+    id: int
+var alive = 0
+proc `=destroy`(t: Trk) =
+  if t.id != 0: dec alive
+proc `=wasMoved`(t: var Trk) = t.id = 0
+proc `=dup`(t: Trk): Trk =
+  if t.id != 0: inc alive
+  Trk(id: t.id)
+proc `=copy`(d: var Trk; s: Trk) =
+  if d.id != 0: dec alive
+  if s.id != 0: inc alive
+  d.id = s.id
+proc newTrk(i: int): Trk =
+  inc alive
+  Trk(id: i)
+type
+  Fn = proc(): int {.closure.}
+  V = ref object
+    f: Fn
+  H = object
+    cb: Fn
+    s: string
+  Rec = ref object
+    f: proc(n: int): int {.closure.}
+# plain closure value, copied, reassigned
+proc a1() =
+  let t = newTrk(1)
+  var p: Fn = proc(): int {.closure.} = t.id
+  let q = p
+  echo "a1 ", p() + q(), " ", alive
+  p = proc(): int {.closure.} = 5
+  echo "a1b ", p() + q(), " ", alive
+# object field, ref field, copies of the object
+proc a2() =
+  let t = newTrk(2)
+  var h = H(cb: proc(): int {.closure.} = t.id, s: "abc")
+  let c = h
+  h.cb = proc(): int {.closure.} = 7
+  echo "a2 ", c.cb() + h.cb(), " ", alive
+proc a3(): V =
+  let t = newTrk(3)
+  V(f: proc(): int {.closure.} = t.id)
+proc a3run() =
+  let v = a3()
+  let w = v
+  echo "a3 ", w.f(), " ", alive
+# seq of closures, each with its own captured value
+proc a4() =
+  var fs: seq[Fn] = @[]
+  for i in 0 .. 2:
+    proc mk(k: int): Fn =
+      let t = newTrk(k + 1)
+      result = proc(): int {.closure.} = t.id
+    fs.add mk(i)
+  var sum = 0
+  for f in fs: sum = sum + f()
+  echo "a4 ", sum, " ", alive
+# the outer environment is held by the inner one through the up link
+proc a5(): Fn =
+  let o = newTrk(5)
+  let g = proc(): Fn {.closure.} =
+    let i = newTrk(6)
+    result = proc(): int {.closure.} = o.id + i.id
+  result = g()
+proc a5run() =
+  let f = a5()
+  echo "a5 ", f(), " ", alive
+# captured parameter: the caller still owns its value
+proc a6(t: Trk): Fn =
+  result = proc(): int {.closure.} = t.id
+proc a6run() =
+  let t = newTrk(7)
+  let f = a6(t)
+  echo "a6 ", f(), " ", alive
+# captured result
+proc a7(): Trk =
+  result = newTrk(8)
+proc a7run() =
+  let t = a7()
+  echo "a7 ", t.id, " ", alive
+# a captured var moved in and reassigned
+proc a8() =
+  var s = newTrk(9)
+  let f = proc() {.closure.} =
+    s = newTrk(10)
+  f()
+  f()
+  echo "a8 ", s.id, " ", alive
+# captured string and seq survive their scope
+proc a9(): Fn =
+  let s = "hello captured string that is long enough to be on the heap"
+  var xs = @[1, 2, 3]
+  xs.add 4
+  result = proc(): int {.closure.} = s.len + xs.len
+proc a9run() =
+  let f = a9()
+  let g = f
+  echo "a9 ", f() + g()
+# many, for the allocator to notice a bad free
+proc a10() =
+  var total = 0
+  for i in 0 .. 3000:
+    let f = a9()
+    total = total + f()
+    let v = a3()
+    total = total + v.f()
+  echo "a10 ", total, " ", alive
+# closure iterator
+iterator counter(n: int): int {.closure.} =
+  var i = 0
+  let s = "a string local in the iterator frame, long enough for the heap"
+  while i < n:
+    yield i + s.len
+    inc i
+proc a11() =
+  var total = 0
+  for k in 0 .. 500:
+    for x in counter(3):
+      total = total + x
+      if k mod 2 == 0: break
+  echo "a11 ", total
+# stack environment: nothing escapes
+proc a12() =
+  let t = newTrk(12)
+  proc g(): int {.closure.} = t.id
+  echo "a12 ", g(), " ", alive
+a1()
+echo "a1 ", alive
+a2()
+echo "a2 ", alive
+a3run()
+echo "a3 ", alive
+a4()
+echo "a4 ", alive
+a5run()
+echo "a5 ", alive
+a6run()
+echo "a6 ", alive
+a7run()
+echo "a7 ", alive
+a8()
+echo "a8 ", alive
+a9run()
+a10()
+echo "a10 ", alive
+a11()
+a12()
+echo "a12 ", alive

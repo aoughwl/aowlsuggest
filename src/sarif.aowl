@@ -1,4 +1,4 @@
-## sarif.nim — emit diagnostics as SARIF 2.1.0, the format GitHub code scanning
+## sarif.aowl — emit diagnostics as SARIF 2.1.0, the format GitHub code scanning
 ## (and many CI dashboards) ingest. Coordinates are converted to SARIF's 1-based
 ## line AND column convention (endColumn is the column just past the span).
 ##
@@ -33,7 +33,7 @@ proc offsetToLineCol(starts: seq[int]; off: int): (int, int) =
 proc trimmedLine(src: string; starts: seq[int]; line1: int): string =
   ## The content of 1-based line `line1`, stripped of leading/trailing whitespace
   ## (spaces, tabs, CR). Manual trim — `strutils.strip` with named args is
-  ## ambiguous under nimony.
+  ## ambiguous under aowlmony.
   if line1 < 1 or line1 - 1 >= starts.len: return ""
   var s = starts[line1 - 1]
   var e = if line1 < starts.len: starts[line1] else: src.len
@@ -44,7 +44,7 @@ proc trimmedLine(src: string; starts: seq[int]; line1: int): string =
 
 proc fnv1aHex(s: string): string =
   ## FNV-1a (32-bit) of `s`, lower-hex. Deterministic and dependency-free — used
-  ## for a stable per-alert fingerprint. Unsigned arithmetic wraps in nimony.
+  ## for a stable per-alert fingerprint. Unsigned arithmetic wraps in aowlmony.
   var h: uint32 = 2166136261'u32
   for i in 0 ..< s.len:
     h = h xor uint32(ord(s[i]))

@@ -1,4 +1,4 @@
-## lspserver.nim — a minimal but real Language Server over stdio. It speaks
+## lspserver.aowl — a minimal but real Language Server over stdio. It speaks
 ## JSON-RPC 2.0 with LSP's `Content-Length` framing, keeps a document store, and
 ## publishes diagnostics (and offers quick-fix code actions) sourced entirely
 ## from aowlparser via the contract layer.
@@ -7,7 +7,8 @@
 ## textDocument/{didOpen,didChange,didSave,didClose}, textDocument/codeAction.
 ## Text sync is FULL (capability 1): each change carries the whole buffer.
 
-import std/[syncio, json]
+import std/syncio
+import jsonref
 import contract, lsp
 
 const serverVersion = "0.3.0"
@@ -110,65 +111,40 @@ proc send(payload: string) =
   except:
     discard
 
-# ── message parsing (immediate extraction; cursors are lazy) ─────────────────
+# ── message parsing ──────────────────────────────────────────────────────────
 
-proc parseHeader(root: JsonNode; meth: var string; hasId: var bool;
+proc parseHeader(root: JsonValue; meth: var string; hasId: var bool;
                  idJson: var string) =
-  for k, v in pairs(root):
-    case k
-    of "method": meth = v.getStr
-    of "id":
-      hasId = true
-      if v.kind == JString: idJson = "\"" & v.getStr & "\""
-      else: idJson = $v.getInt
-    else: discard
+  meth = root{"method"}.getStr("")
+  if root.hasKey("id"):
+    hasId = true
+    idJson = $root{"id"}
 
-proc parseDidOpen(root: JsonNode; uri, text: var string) =
-  for k, v in pairs(root):
-    if k == "params":
-      for k2, v2 in pairs(v):
-        if k2 == "textDocument":
-          for k3, v3 in pairs(v2):
-            case k3
-            of "uri": uri = v3.getStr
-            of "text": text = v3.getStr
-            else: discard
+proc paramsUri(root: JsonValue): string =
+  root{"params"}{"textDocument"}{"uri"}.getStr("")
 
-proc parseDidChange(root: JsonNode; uri, text: var string) =
-  for k, v in pairs(root):
-    if k == "params":
-      for k2, v2 in pairs(v):
-        if k2 == "textDocument":
-          for k3, v3 in pairs(v2):
-            if k3 == "uri": uri = v3.getStr
-        elif k2 == "contentChanges":
-          for el in items(v2):
-            for k3, v3 in pairs(el):
-              if k3 == "text": text = v3.getStr   # FULL sync: whole buffer
+proc parseDidOpen(root: JsonValue; uri, text: var string) =
+  let td = root{"params"}{"textDocument"}
+  uri = td{"uri"}.getStr("")
+  text = td{"text"}.getStr("")
 
-proc parseUriOnly(root: JsonNode; uri: var string) =
-  for k, v in pairs(root):
-    if k == "params":
-      for k2, v2 in pairs(v):
-        if k2 == "textDocument":
-          for k3, v3 in pairs(v2):
-            if k3 == "uri": uri = v3.getStr
+proc parseDidChange(root: JsonValue; uri, text: var string) =
+  uri = paramsUri(root)
+  let ch = root{"params"}{"contentChanges"}
+  for i in 0 ..< ch.len:
+    if ch.at(i).hasKey("text"):
+      text = ch.at(i){"text"}.getStr("")   # FULL sync: whole buffer
 
-proc parseCodeAction(root: JsonNode; uri: var string; loLine, hiLine: var int) =
-  for k, v in pairs(root):
-    if k == "params":
-      for k2, v2 in pairs(v):
-        if k2 == "textDocument":
-          for k3, v3 in pairs(v2):
-            if k3 == "uri": uri = v3.getStr
-        elif k2 == "range":
-          for k3, v3 in pairs(v2):
-            if k3 == "start":
-              for k4, v4 in pairs(v3):
-                if k4 == "line": loLine = int(v4.getInt)
-            elif k3 == "end":
-              for k4, v4 in pairs(v3):
-                if k4 == "line": hiLine = int(v4.getInt)
+proc parseUriOnly(root: JsonValue; uri: var string) =
+  uri = paramsUri(root)
+
+proc parseCodeAction(root: JsonValue; uri: var string; loLine, hiLine: var int) =
+  uri = paramsUri(root)
+  let r = root{"params"}{"range"}
+  if r{"start"}.hasKey("line"):
+    loLine = int(r{"start"}{"line"}.getInt(0))
+  if r{"end"}.hasKey("line"):
+    hiLine = int(r{"end"}{"line"}.getInt(0))
 
 # ── behaviour ────────────────────────────────────────────────────────────────
 
@@ -183,15 +159,13 @@ proc publishDiagnostics(s: Server; uri, text: string) =
 
 proc handle(s: var Server; body: string; shouldExit: var bool) =
   if body.len == 0: return
-  var tree = default(JsonTree)
-  try:
-    tree = parseJson(body)
-  except:
-    return
+  var perr = ""
+  let tree = parseJson(body, perr)
+  if perr.len > 0: return
   var meth = ""
   var hasId = false
   var idJson = "null"
-  parseHeader(tree.root, meth, hasId, idJson)
+  parseHeader(tree, meth, hasId, idJson)
   case meth
   of "initialize":
     send("{\"jsonrpc\":\"2.0\",\"id\":" & idJson & ",\"result\":{" &
@@ -207,26 +181,26 @@ proc handle(s: var Server; body: string; shouldExit: var bool) =
   of "textDocument/didOpen":
     var uri = ""
     var text = ""
-    parseDidOpen(tree.root, uri, text)
+    parseDidOpen(tree, uri, text)
     if uri.len > 0:
       setDoc(s, uri, text)
       publishDiagnostics(s, uri, text)
   of "textDocument/didChange":
     var uri = ""
     var text = ""
-    parseDidChange(tree.root, uri, text)
+    parseDidChange(tree, uri, text)
     if uri.len > 0:
       setDoc(s, uri, text)
       publishDiagnostics(s, uri, text)
   of "textDocument/didSave":
     var uri = ""
-    parseUriOnly(tree.root, uri)
+    parseUriOnly(tree, uri)
     var text = ""
     if uri.len > 0 and getDoc(s, uri, text):
       publishDiagnostics(s, uri, text)
   of "textDocument/didClose":
     var uri = ""
-    parseUriOnly(tree.root, uri)
+    parseUriOnly(tree, uri)
     if uri.len > 0:
       delDoc(s, uri)
       # clear diagnostics for the closed document
@@ -236,7 +210,7 @@ proc handle(s: var Server; body: string; shouldExit: var bool) =
     var uri = ""
     var loLine = 0
     var hiLine = 1000000000
-    parseCodeAction(tree.root, uri, loLine, hiLine)
+    parseCodeAction(tree, uri, loLine, hiLine)
     var text = ""
     var actions = "[]"
     if uri.len > 0 and getDoc(s, uri, text):

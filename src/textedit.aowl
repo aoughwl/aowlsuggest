@@ -1,5 +1,5 @@
-## textedit.nim — a tiny source-text model: byte-offset edits, line/col mapping,
-## and a unified diff. Nothing here understands Nim; it only splices text at
+## textedit.aowl — a tiny source-text model: byte-offset edits, line/col mapping,
+## and a unified diff. Nothing here understands aowlmony; it only splices text at
 ## positions the contract layer hands us (all from aowlparser).
 
 import std/strutils

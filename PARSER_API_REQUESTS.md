@@ -12,7 +12,7 @@ has to interpret a diagnostic rather than just apply it.
 
 **What.** Today each diagnostic carries `fix` as *prose* (`"did you mean '=='?"`,
 `"insert ':' at the end of the line"`). aowlsuggest must map `(code, span,
-message)` to a concrete text edit itself, in `src/fixes.nim`. That means the
+message)` to a concrete text edit itself, in `src/fixes.aowl`. That means the
 auto-applicable set is a hardcoded four codes (`assignment-in-condition`,
 `mismatched-bracket`, `expected-colon`, `missing-routine-equals`); every other
 repairable diagnostic degrades to a non-applied "suggestion".

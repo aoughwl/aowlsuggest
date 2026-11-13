@@ -1,0 +1,89 @@
+## Closures in closures. A local of a closure captured by a nested closure stopped lowering. All
+## locals of a nest shared one environment: each activation of `mk` would share one slot as well.
+import std/syncio
+
+proc local(): int =
+  let a = 1
+  let f = proc(): int {.closure.} =
+    let b = a + 1
+    let g = proc(): int {.closure.} = b
+    g()
+  f()
+echo local()
+
+proc factory() =
+  let mk = proc(x: int): proc(): int {.closure.} {.closure.} =
+    let y = x * 10
+    result = proc(): int {.closure.} = y + x
+  let p = mk(1)
+  let q = mk(2)
+  echo p(), " ", q()
+factory()
+
+proc three(): int =
+  var a = 1
+  let f = proc(): int {.closure.} =
+    var b = 2
+    let g = proc(): int {.closure.} =
+      var c = 3
+      let h = proc(): int {.closure.} = a + b + c
+      c = 30
+      h()
+    b = 20
+    g()
+  a = 100
+  f()
+echo three()
+
+proc params(start: int): int =
+  let f = proc(a: int; b: string): int {.closure.} =
+    let g = proc(): int {.closure.} = a + b.len + start
+    g() + g()
+  f(1, "xy") + f(2, "z")
+echo params(100)
+
+proc capturedCallee(): int =
+  let g = proc(): int {.closure.} = 1
+  let f = proc(): int {.closure.} = g() + 1
+  f()
+echo capturedCallee()
+
+proc siblings(): int =
+  var a = 5
+  proc g(): int {.closure.} = a + 1
+  proc f(): int {.closure.} = g() + a
+  result = f()
+echo siblings()
+
+proc stackNest(): int =
+  var a = 1
+  proc f(): int {.closure.} =
+    var b = 2
+    proc g(): int {.closure.} = a + b
+    g()
+  f()
+echo stackNest()
+
+proc passAlong(): int =
+  var a = 7
+  proc g(): int {.closure.} = a + 1
+  proc h(): int {.closure.} = g()
+  let v = proc(): int {.closure.} = h()
+  result = v()
+echo passAlong()
+
+type Box = ref object
+  cb: proc(): int {.closure.}
+
+proc escape(): int =
+  let b = Box()
+  let f = proc(v: int) {.closure.} =
+    var w = v
+    b.cb = proc(): int {.closure.} =
+      w = w + 1
+      w
+  f(1)
+  let first = b.cb
+  f(10)
+  first() * 100 + b.cb()
+echo escape()

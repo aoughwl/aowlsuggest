@@ -1,0 +1,16 @@
+## `r[] = value` on a type with hooks: the destroy and the store took the ref cell, not its object.
+import std/syncio
+
+type
+  T = object
+    a: seq[string]
+  TRef = ref T
+
+proc mk(): T = T(a: @["x"])
+
+proc wrap(): TRef =
+  result = TRef()
+  result[] = mk()
+
+let r = wrap()
+echo r[].a[0], r.a.len

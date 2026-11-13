@@ -1,0 +1,22 @@
+## `inner.enc(a)` on a captured ref object: the type navigator answers `auto` for an environment
+## access, so this was not seen to be a call of a closure, and lowering stopped.
+import std/syncio
+
+type
+  CodecI = ref object
+    enc: proc(a: int32): string {.closure.}
+  E = ref object
+    n: int
+
+proc viaClosure(inner: CodecI): CodecI =
+  CodecI(enc: proc(a: int32): string {.closure.} = inner.enc(a))
+
+proc sameName(e: E): int =
+  # A field beside a captured local spelled the same.
+  let n = 1
+  let g = proc(): int {.closure.} = e.n + n
+  g()
+
+let i = CodecI(enc: proc(a: int32): string {.closure.} = $a)
+echo viaClosure(i).enc(3'i32)
+echo sameName(E(n: 41))

@@ -1,0 +1,11 @@
+type
+  Ctl* = ref object of RootObj
+    tickImpl*: proc(self: Ctl; mob: Mob) {.closure.}
+  Plain* = ref object of Ctl
+    wanted*: float64
+  Mob* = ref object of RootObj
+    moveControl*: Ctl
+proc newPlain*(): Plain = Plain(wanted: 0.0)
+proc tickCtl*(self: Mob) =
+  let c = self.moveControl
+  c.tickImpl(c, self)

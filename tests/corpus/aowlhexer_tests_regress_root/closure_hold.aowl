@@ -1,0 +1,15 @@
+## A module that holds closure fields and declares no closure proc: pass 2 did not run for it,
+## so the type kept a bare proctype while every use was the (fn, env) tuple. gcc refused it.
+import std/syncio
+import closure_hold_lib
+import closure_hold_pass
+
+type File1 = ref object
+  n: int
+
+proc mk(x: File1): V =
+  V(f: proc(a: bool): bool {.closure.} = x.n > 0 and a,
+    g: proc(s: string): int {.closure.} = s.len + x.n)
+
+let v = mk(File1(n: 2))
+echo v.f(true), " ", v.g("abc"), " ", yes(v)

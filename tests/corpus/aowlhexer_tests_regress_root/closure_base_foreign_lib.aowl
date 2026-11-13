@@ -1,0 +1,5 @@
+type
+  Base* = ref object of RootObj
+    cb*: proc(self: Base): int {.closure.}
+proc keep*(k: int): proc(self: Base): int {.closure.} =
+  result = proc(self: Base): int {.closure.} = k

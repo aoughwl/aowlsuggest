@@ -1,0 +1,18 @@
+## `obj.field = proc...` on a type of another module: the lifter read the type from the other
+## module's frontend output, called the field trivial, and took no reference on the environment.
+import std/syncio
+import closure_store_lib
+
+type H = ref object
+  v: V
+  n: int
+
+proc mk(): H =
+  let h = H(v: V(), n: 3)
+  h.v.f = proc(): int {.closure.} = h.n
+  h
+
+let a = mk()
+let junk = newSeq[int](64)
+let g = a.v.f
+echo g(), " ", junk.len

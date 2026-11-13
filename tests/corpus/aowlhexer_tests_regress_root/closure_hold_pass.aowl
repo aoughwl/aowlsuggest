@@ -1,0 +1,5 @@
+## Only holds and passes values of the type: no closure anywhere in its own text.
+import closure_hold_lib
+
+proc same*(v: V): V = v
+proc yes*(v: V): bool = same(v).f(true)

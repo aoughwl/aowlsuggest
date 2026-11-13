@@ -1,0 +1,15 @@
+import std/syncio
+import closure_base_foreign_set_lib
+type
+  S = ref object of Mob
+    n: int
+  C2 = ref object of Ctl
+    s: S
+let s = S(n: 1)
+let c = C2(s: s)
+c.tickImpl = proc(self: Ctl; mob: Mob) {.closure.} =
+  let k = C2(self)
+  k.s.n = 2
+s.moveControl = c
+s.tickCtl()
+echo "done"

@@ -1,0 +1,21 @@
+## `obj.field(...)` on a type of another module hoists the field to a temp that gets a destroy.
+## It got no dup: the field's type read as trivial. Every call dropped the environment's count,
+## the second freed it. Also signatures of other modules, with no closure in this module's text.
+import std/syncio
+import closure_call_lib
+
+proc viaCall(k: int): int = retBare(k)()
+proc passed(t: int): int = takeCb(retCb(t), 2)
+
+proc main() =
+  let t = mk("captured string kept in the closure environment ")
+  var total = 0
+  for i in 0 ..< 200:
+    let s = t.key(i)
+    var junk = newSeq[int](8)
+    junk[0] = i
+    total = total + s.len + junk.len
+  echo total
+  echo t.key(1)
+  echo viaCall(4), " ", passed(1)
+main()

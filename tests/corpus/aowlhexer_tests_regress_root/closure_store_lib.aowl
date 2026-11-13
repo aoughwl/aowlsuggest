@@ -1,0 +1,6 @@
+type
+  V* = ref object
+    f*: proc(): int {.closure.}
+
+proc anchor*(): proc(): bool {.closure.} =
+  proc(): bool {.closure.} = true

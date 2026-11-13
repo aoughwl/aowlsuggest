@@ -5,7 +5,7 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fail=0
 
-if [ ! -x "$ROOT/bin/aowlsuggest" ]; then
+if [ ! -x "$ROOT/bin/aowlsuggest.exe" ]; then
   echo "building aowlsuggest ..."
   bash "$ROOT/build.sh" || { echo "build failed"; exit 1; }
 fi
@@ -26,9 +26,9 @@ echo "== config.sh =="
 bash "$ROOT/tests/config.sh" || fail=1
 echo
 echo "== stress.sh =="
-# Realism gate over the full Nim compiler test corpus (deliberately malformed
-# files). Skips cleanly if that corpus is absent. Override SAMPLE to trim.
-SAMPLE="${SAMPLE:-3000}" bash "$ROOT/tests/stress.sh" || fail=1
+# Realism gate: known-valid sources damaged four ways (see stress.sh); a fix
+# must never increase errors. Override SAMPLE to change how many files are damaged.
+SAMPLE="${SAMPLE:-40}" bash "$ROOT/tests/stress.sh" || fail=1
 
 echo
 if [ "$fail" -eq 0 ]; then echo "ALL TESTS PASSED"; else echo "TEST FAILURES"; fi

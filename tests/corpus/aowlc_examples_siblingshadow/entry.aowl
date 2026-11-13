@@ -1,0 +1,2 @@
+var Rule* = 3
+proc bump*() = inc Rule

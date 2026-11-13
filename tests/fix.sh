@@ -7,18 +7,17 @@
 #   (b) valid stays untouched: a well-formed file yields NO fix and is left
 #       byte-for-byte unchanged (the zero-false-positive guarantee, per file).
 set -u
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-AS="${AOWLSUGGEST:-$ROOT/bin/aowlsuggest}"
-WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+WORK="$(mkwork)"; trap 'rm -rf "$WORK"' EXIT
 fail=0
 
 # --- (a) before -> after, then lints clean --------------------------------
 # each case: name | before (printf %b) | expected-exact-after
 run_fix_case() {
   local name="$1" before="$2" after="$3"
-  printf '%b' "$before" > "$WORK/c.nim"
-  "$AS" fix "$WORK/c.nim" --write >/dev/null 2>&1
-  local got; got="$(cat "$WORK/c.nim")"
+  printf '%b' "$before" > "$WORK/c.aowl"
+  "$AS" fix "$WORK/c.aowl" --write >/dev/null 2>&1
+  local got; got="$(cat "$WORK/c.aowl")"
   local want; want="$(printf '%b' "$after")"
   if [ "$got" != "$want" ]; then
     echo "FAIL[$name]: after-fix mismatch"
@@ -28,7 +27,7 @@ run_fix_case() {
     return
   fi
   # the repaired file must now be clean (exit 0, no errors)
-  if ! "$AS" lint "$WORK/c.nim" >/dev/null 2>&1; then
+  if ! "$AS" lint "$WORK/c.aowl" >/dev/null 2>&1; then
     echo "FAIL[$name]: repaired file still has errors"; fail=1
   fi
 }
@@ -45,10 +44,10 @@ run_fix_case cascade         'proc f()\n  if a = b:\n    echo 1\n' \
 # --- (b) valid files must never change ------------------------------------
 valid_untouched() {
   local name="$1" src="$2"
-  printf '%b' "$src" > "$WORK/v.nim"
-  local before; before="$(cat "$WORK/v.nim")"
-  local out; out="$("$AS" fix "$WORK/v.nim" --write 2>&1)"
-  local after; after="$(cat "$WORK/v.nim")"
+  printf '%b' "$src" > "$WORK/v.aowl"
+  local before; before="$(cat "$WORK/v.aowl")"
+  local out; out="$("$AS" fix "$WORK/v.aowl" --write 2>&1)"
+  local after; after="$(cat "$WORK/v.aowl")"
   if [ "$before" != "$after" ]; then
     echo "FAIL[$name]: valid file was modified"; fail=1
   fi
@@ -56,7 +55,7 @@ valid_untouched() {
   grep -q 'fixed ' <<<"$out" && {
     echo "FAIL[$name]: a fix was applied to a valid file: $out"; fail=1; }
   # dry-run says so explicitly
-  grep -q 'no automatic fixes' <<<"$("$AS" fix "$WORK/v.nim" 2>&1)" || {
+  grep -q 'no automatic fixes' <<<"$("$AS" fix "$WORK/v.aowl" 2>&1)" || {
     echo "FAIL[$name]: dry-run did not report 'no automatic fixes'"; fail=1; }
 }
 valid_untouched simple-proc  'proc f(x: int): int = x + 1\n'
@@ -66,15 +65,15 @@ valid_untouched forward-decl 'proc f()\ntype T = int\n'
 valid_untouched trailing-comma 'discard foo(a, b,)\n'
 
 # --- fix DRY-RUN shows a diff but does not write ---------------------------
-printf 'if x = 5:\n  discard\n' > "$WORK/d.nim"
-before="$(cat "$WORK/d.nim")"
-dout="$("$AS" fix "$WORK/d.nim" 2>&1)"
-[ "$(cat "$WORK/d.nim")" = "$before" ] || { echo "FAIL: dry-run modified the file"; fail=1; }
+printf 'if x = 5:\n  discard\n' > "$WORK/d.aowl"
+before="$(cat "$WORK/d.aowl")"
+dout="$("$AS" fix "$WORK/d.aowl" 2>&1)"
+[ "$(cat "$WORK/d.aowl")" = "$before" ] || { echo "FAIL: dry-run modified the file"; fail=1; }
 grep -q '^+if x == 5:' <<<"$dout" || { echo "FAIL: dry-run did not show the diff"; fail=1; }
 
 # --- lint --format:json is a parseable object with a summary ---------------
-printf 'let a = (1 + 2]\n' > "$WORK/j.nim"
-jout="$("$AS" lint --format:json "$WORK/j.nim" 2>&1)"
+printf 'let a = (1 + 2]\n' > "$WORK/j.aowl"
+jout="$("$AS" lint --format:json "$WORK/j.aowl" 2>&1)"
 case "$jout" in
   '{'*'}') : ;;
   *) echo "FAIL: lint --format:json is not a JSON object"; fail=1 ;;
@@ -83,27 +82,27 @@ grep -q '"code":"mismatched-bracket"' <<<"$jout" || { echo "FAIL: json missing c
 grep -q '"summary"' <<<"$jout" || { echo "FAIL: json missing summary"; fail=1; }
 
 # --- lint exit code is non-zero on error, zero on clean --------------------
-printf 'if x = 5:\n  discard\n' > "$WORK/e.nim"
-"$AS" lint "$WORK/e.nim" >/dev/null 2>&1 && { echo "FAIL: lint on error exited 0"; fail=1; }
-printf 'let x = 1\n' > "$WORK/e.nim"
-"$AS" lint "$WORK/e.nim" >/dev/null 2>&1 || { echo "FAIL: lint on clean exited non-zero"; fail=1; }
+printf 'if x = 5:\n  discard\n' > "$WORK/e.aowl"
+"$AS" lint "$WORK/e.aowl" >/dev/null 2>&1 && { echo "FAIL: lint on error exited 0"; fail=1; }
+printf 'let x = 1\n' > "$WORK/e.aowl"
+"$AS" lint "$WORK/e.aowl" >/dev/null 2>&1 || { echo "FAIL: lint on clean exited non-zero"; fail=1; }
 
 # --- lsp output carries a code action with a 0-based range -----------------
-printf 'if x = 5:\n  discard\n' > "$WORK/l.nim"
-lout="$("$AS" lsp "$WORK/l.nim" 2>&1)"
+printf 'if x = 5:\n  discard\n' > "$WORK/l.aowl"
+lout="$("$AS" lsp "$WORK/l.aowl" 2>&1)"
 grep -q '"codeActions"' <<<"$lout" || { echo "FAIL: lsp missing codeActions"; fail=1; }
 grep -q '"newText":"=="' <<<"$lout" || { echo "FAIL: lsp code action missing newText"; fail=1; }
 grep -q '"line":0' <<<"$lout" || { echo "FAIL: lsp range not 0-based"; fail=1; }
 
 # --- "did you mean" ranking: a mismatched bracket offers TWO ranked actions -
-printf 'let a = (1 + 2]\n' > "$WORK/r.nim"
-rout="$("$AS" lsp "$WORK/r.nim" 2>&1)"
+printf 'let a = (1 + 2]\n' > "$WORK/r.aowl"
+rout="$("$AS" lsp "$WORK/r.aowl" 2>&1)"
 grep -q '"isPreferred":true' <<<"$rout" || { echo "FAIL: ranking: no preferred action"; fail=1; }
 grep -q '"isPreferred":false' <<<"$rout" || { echo "FAIL: ranking: no alternative action"; fail=1; }
 
 # --- stdin (unsaved buffer): check / fix / lsp -----------------------------
-sout="$(printf 'if x = 5:\n  discard\n' | "$AS" check --stdin --filename:buf.nim 2>&1)"
-grep -q 'buf.nim:1:6: error\[assignment-in-condition\]' <<<"$sout" || {
+sout="$(printf 'if x = 5:\n  discard\n' | "$AS" check --stdin --filename:buf.aowl 2>&1)"
+grep -q 'buf.aowl:1:6: error\[assignment-in-condition\]' <<<"$sout" || {
   echo "FAIL: stdin check did not use the reported filename / diagnostic"; fail=1; }
 # fix --stdin writes the FIXED source to stdout (summary goes to stderr)
 fsout="$(printf 'if x = 5:\n  discard\n' | "$AS" fix --stdin 2>/dev/null)"
@@ -113,76 +112,76 @@ fsout="$(printf 'if x = 5:\n  discard\n' | "$AS" fix --stdin 2>/dev/null)"
 vsout="$(printf 'let x = 1\n' | "$AS" fix --stdin 2>/dev/null)"
 [ "$vsout" = "$(printf 'let x = 1\n')" ] || {
   echo "FAIL: fix --stdin altered a valid buffer"; fail=1; }
-lsout="$(printf 'if x = 5:\n  discard\n' | "$AS" lsp --stdin --filename:buf.nim 2>&1)"
-grep -q 'buf.nim' <<<"$lsout" || { echo "FAIL: stdin lsp did not use the filename in the URI"; fail=1; }
+lsout="$(printf 'if x = 5:\n  discard\n' | "$AS" lsp --stdin --filename:buf.aowl 2>&1)"
+grep -q 'buf.aowl' <<<"$lsout" || { echo "FAIL: stdin lsp did not use the filename in the URI"; fail=1; }
 
 # --- comparison-in-binding auto-fix (mirror of assignment-in-condition) ----
-printf 'let x == 5\n' > "$WORK/cb.nim"
-"$AS" fix --no-config --write "$WORK/cb.nim" >/dev/null 2>&1
-[ "$(printf 'let x = 5\n')" = "$(cat "$WORK/cb.nim")" ] || { echo "FAIL: comparison-in-binding not fixed: $(cat "$WORK/cb.nim")"; fail=1; }
+printf 'let x == 5\n' > "$WORK/cb.aowl"
+"$AS" fix --no-config --write "$WORK/cb.aowl" >/dev/null 2>&1
+[ "$(printf 'let x = 5\n')" = "$(cat "$WORK/cb.aowl")" ] || { echo "FAIL: comparison-in-binding not fixed: $(cat "$WORK/cb.aowl")"; fail=1; }
 # must NOT touch a real comparison in the value
-printf 'let y = 1\nlet z = y == 2\n' > "$WORK/cb2.nim"
-b2="$(cat "$WORK/cb2.nim")"
-"$AS" fix --no-config --write "$WORK/cb2.nim" >/dev/null 2>&1
-[ "$b2" = "$(cat "$WORK/cb2.nim")" ] || { echo "FAIL: comparison-in-binding fix touched a valid comparison"; fail=1; }
+printf 'let y = 1\nlet z = y == 2\n' > "$WORK/cb2.aowl"
+b2="$(cat "$WORK/cb2.aowl")"
+"$AS" fix --no-config --write "$WORK/cb2.aowl" >/dev/null 2>&1
+[ "$b2" = "$(cat "$WORK/cb2.aowl")" ] || { echo "FAIL: comparison-in-binding fix touched a valid comparison"; fail=1; }
 
 # --- stray-end auto-fix (remove a Ruby/Pascal/Lua 'end') -------------------
-printf 'proc f() =\n  discard\nend\n' > "$WORK/se.nim"
-"$AS" fix --no-config --write "$WORK/se.nim" >/dev/null 2>&1
-grep -qx 'end' "$WORK/se.nim" && { echo "FAIL: stray 'end' not removed"; fail=1; }
-"$AS" check --no-config "$WORK/se.nim" >/dev/null 2>&1 || { echo "FAIL: stray-end fix left an error"; fail=1; }
+printf 'proc f() =\n  discard\nend\n' > "$WORK/se.aowl"
+"$AS" fix --no-config --write "$WORK/se.aowl" >/dev/null 2>&1
+grep -qx 'end' "$WORK/se.aowl" && { echo "FAIL: stray 'end' not removed"; fail=1; }
+"$AS" check --no-config "$WORK/se.aowl" >/dev/null 2>&1 || { echo "FAIL: stray-end fix left an error"; fail=1; }
 
 # --- walrus-in-binding auto-fix (':=' -> '=') ------------------------------
 for form in 'let x := 5|let x = 5' 'const C := 5|const C = 5' 'var v := 5|var v = 5'; do
   bad="${form%|*}"; good="${form#*|}"
-  printf '%s\n' "$bad" > "$WORK/w.nim"
-  "$AS" fix --no-config --write "$WORK/w.nim" >/dev/null 2>&1
-  [ "$good" = "$(cat "$WORK/w.nim")" ] || { echo "FAIL: walrus fix '$bad' -> $(cat "$WORK/w.nim")"; fail=1; }
+  printf '%s\n' "$bad" > "$WORK/w.aowl"
+  "$AS" fix --no-config --write "$WORK/w.aowl" >/dev/null 2>&1
+  [ "$good" = "$(cat "$WORK/w.aowl")" ] || { echo "FAIL: walrus fix '$bad' -> $(cat "$WORK/w.aowl")"; fail=1; }
 done
 
 # --- c-block-comment auto-fix ('/* … */' -> '#[ … ]#') --------------------
-printf '/* a comment */\nlet x = 5\n' > "$WORK/bc.nim"
-"$AS" fix --no-config --write "$WORK/bc.nim" >/dev/null 2>&1
-[ "#[ a comment ]#" = "$(sed -n '1p' "$WORK/bc.nim")" ] || { echo "FAIL: c-block fix -> $(sed -n '1p' "$WORK/bc.nim")"; fail=1; }
-"$AS" check --no-config "$WORK/bc.nim" >/dev/null 2>&1 || { echo "FAIL: c-block fix left an error"; fail=1; }
+printf '/* a comment */\nlet x = 5\n' > "$WORK/bc.aowl"
+"$AS" fix --no-config --write "$WORK/bc.aowl" >/dev/null 2>&1
+[ "#[ a comment ]#" = "$(sed -n '1p' "$WORK/bc.aowl")" ] || { echo "FAIL: c-block fix -> $(sed -n '1p' "$WORK/bc.aowl")"; fail=1; }
+"$AS" check --no-config "$WORK/bc.aowl" >/dev/null 2>&1 || { echo "FAIL: c-block fix left an error"; fail=1; }
 # inline form
-printf 'let x = 5 /* c */\n' > "$WORK/bc2.nim"
-"$AS" fix --no-config --write "$WORK/bc2.nim" >/dev/null 2>&1
-[ "let x = 5 #[ c ]#" = "$(cat "$WORK/bc2.nim")" ] || { echo "FAIL: c-block inline fix -> $(cat "$WORK/bc2.nim")"; fail=1; }
+printf 'let x = 5 /* c */\n' > "$WORK/bc2.aowl"
+"$AS" fix --no-config --write "$WORK/bc2.aowl" >/dev/null 2>&1
+[ "let x = 5 #[ c ]#" = "$(cat "$WORK/bc2.aowl")" ] || { echo "FAIL: c-block inline fix -> $(cat "$WORK/bc2.aowl")"; fail=1; }
 
 # --- mut-not-a-keyword auto-fix ('let/var/const mut x' -> 'var x') ---------
 for form in 'let mut x = 5|var x = 5' 'var mut y = 1|var y = 1' 'const mut z = 2|var z = 2'; do
   bad="${form%|*}"; good="${form#*|}"
-  printf '%s\n' "$bad" > "$WORK/mk.nim"
-  "$AS" fix --no-config --write "$WORK/mk.nim" >/dev/null 2>&1
-  [ "$good" = "$(cat "$WORK/mk.nim")" ] || { echo "FAIL: mut fix '$bad' -> $(cat "$WORK/mk.nim")"; fail=1; }
+  printf '%s\n' "$bad" > "$WORK/mk.aowl"
+  "$AS" fix --no-config --write "$WORK/mk.aowl" >/dev/null 2>&1
+  [ "$good" = "$(cat "$WORK/mk.aowl")" ] || { echo "FAIL: mut fix '$bad' -> $(cat "$WORK/mk.aowl")"; fail=1; }
 done
 # a variable literally named 'mut' must be left untouched
-printf 'let mut = 5\n' > "$WORK/mk2.nim"
-"$AS" fix --no-config --write "$WORK/mk2.nim" >/dev/null 2>&1
-[ "let mut = 5" = "$(cat "$WORK/mk2.nim")" ] || { echo "FAIL: mut fix touched a variable named mut"; fail=1; }
+printf 'let mut = 5\n' > "$WORK/mk2.aowl"
+"$AS" fix --no-config --write "$WORK/mk2.aowl" >/dev/null 2>&1
+[ "let mut = 5" = "$(cat "$WORK/mk2.aowl")" ] || { echo "FAIL: mut fix touched a variable named mut"; fail=1; }
 
 # --- foreign-function-keyword is SUGGESTION-ONLY (never auto-applied) ------
-printf 'fn main() {\n  discard\n}\n' > "$WORK/ff.nim"
-ffb="$(cat "$WORK/ff.nim")"
-ffo="$("$AS" fix --no-config --write "$WORK/ff.nim" 2>&1)"
-[ "$ffb" = "$(cat "$WORK/ff.nim")" ] || { echo "FAIL: foreign-function-keyword was auto-applied (must be suggestion-only)"; fail=1; }
+printf 'fn main() {\n  discard\n}\n' > "$WORK/ff.aowl"
+ffb="$(cat "$WORK/ff.aowl")"
+ffo="$("$AS" fix --no-config --write "$WORK/ff.aowl" 2>&1)"
+[ "$ffb" = "$(cat "$WORK/ff.aowl")" ] || { echo "FAIL: foreign-function-keyword was auto-applied (must be suggestion-only)"; fail=1; }
 grep -q 'foreign-function-keyword' <<<"$ffo" || { echo "FAIL: foreign-function-keyword suggestion not surfaced"; fail=1; }
 
 # --- foreign-block-keyword is SUGGESTION-ONLY (never auto-applied) ---------
-printf 'class Foo {\n  x: int\n}\n' > "$WORK/fb.nim"
-fbb="$(cat "$WORK/fb.nim")"
-fbo="$("$AS" fix --no-config --write "$WORK/fb.nim" 2>&1)"
-[ "$fbb" = "$(cat "$WORK/fb.nim")" ] || { echo "FAIL: foreign-block-keyword was auto-applied (must be suggestion-only)"; fail=1; }
+printf 'class Foo {\n  x: int\n}\n' > "$WORK/fb.aowl"
+fbb="$(cat "$WORK/fb.aowl")"
+fbo="$("$AS" fix --no-config --write "$WORK/fb.aowl" 2>&1)"
+[ "$fbb" = "$(cat "$WORK/fb.aowl")" ] || { echo "FAIL: foreign-block-keyword was auto-applied (must be suggestion-only)"; fail=1; }
 grep -q 'foreign-block-keyword' <<<"$fbo" || { echo "FAIL: foreign-block-keyword suggestion not surfaced"; fail=1; }
 
 # --- switch/match/do-while/ruby-do are SUGGESTION-ONLY (never auto-applied) --
 suggest_only() {  # name | before(printf %b) | expected-code
   local name="$1" before="$2" code="$3"
-  printf '%b' "$before" > "$WORK/so.nim"
-  local b="$(cat "$WORK/so.nim")"
-  local o="$("$AS" fix --no-config --write "$WORK/so.nim" 2>&1)"
-  [ "$b" = "$(cat "$WORK/so.nim")" ] || { echo "FAIL: $name was auto-applied (must be suggestion-only)"; fail=1; }
+  printf '%b' "$before" > "$WORK/so.aowl"
+  local b="$(cat "$WORK/so.aowl")"
+  local o="$("$AS" fix --no-config --write "$WORK/so.aowl" 2>&1)"
+  [ "$b" = "$(cat "$WORK/so.aowl")" ] || { echo "FAIL: $name was auto-applied (must be suggestion-only)"; fail=1; }
   grep -q "$code" <<<"$o" || { echo "FAIL: $name suggestion ($code) not surfaced"; fail=1; }
 }
 suggest_only "switch-block" 'switch x {\n  discard\n}\n' 'foreign-case-block'
@@ -190,21 +189,21 @@ suggest_only "do-while"     'do {\n  discard\n} while (x)\n' 'do-while-loop'
 suggest_only "ruby-do"      'xs.each do |i|\n  echo i\n' 'ruby-block-params'
 suggest_only "throws-clause" 'proc f() throws IOError = discard\n' 'foreign-routine-clause'
 suggest_only "where-clause"  'proc f[T](x: T) where T: int = discard\n' 'foreign-routine-clause'
-suggest_only "extends"       'type Dog extends Animal = object\n' 'extends-inheritance'
+suggest_only "extends"       'type Dog extends Beast = object\n' 'extends-inheritance'
 suggest_only "yield-from"    'iterator it(): int =\n  yield from xs\n' 'yield-from'
 suggest_only "async-prefix"  'async proc f() = discard\n' 'async-routine-prefix'
 
 # opt-in idiom lints: surface only under their flag, never auto-applied.
 suggest_only_flag() {  # name | before | expected-code | flag
   local name="$1" before="$2" code="$3" flag="$4"
-  printf '%b' "$before" > "$WORK/so.nim"
-  local b="$(cat "$WORK/so.nim")"
+  printf '%b' "$before" > "$WORK/so.aowl"
+  local b="$(cat "$WORK/so.aowl")"
   # must be SILENT without the flag
-  grep -q "$code" <<<"$("$AS" fix --no-config --write "$WORK/so.nim" 2>&1)" && {
+  grep -q "$code" <<<"$("$AS" fix --no-config --write "$WORK/so.aowl" 2>&1)" && {
     echo "FAIL: $name ($code) must be OFF without $flag"; fail=1; }
-  printf '%b' "$before" > "$WORK/so.nim"; b="$(cat "$WORK/so.nim")"
-  local o="$("$AS" fix --no-config "$flag" --write "$WORK/so.nim" 2>&1)"
-  [ "$b" = "$(cat "$WORK/so.nim")" ] || { echo "FAIL: $name was auto-applied (must be suggestion-only)"; fail=1; }
+  printf '%b' "$before" > "$WORK/so.aowl"; b="$(cat "$WORK/so.aowl")"
+  local o="$("$AS" fix --no-config "$flag" --write "$WORK/so.aowl" 2>&1)"
+  [ "$b" = "$(cat "$WORK/so.aowl")" ] || { echo "FAIL: $name was auto-applied (must be suggestion-only)"; fail=1; }
   grep -q "$code" <<<"$o" || { echo "FAIL: $name suggestion ($code) not surfaced under $flag"; fail=1; }
 }
 suggest_only_flag "bool-eq-true"  'let z = ok == true\n'  'redundant-bool-literal' '--style:idioms'
@@ -231,88 +230,88 @@ suggest_only_flag "asm-block"     'asm """\n  nop\n"""\n' 'asm-block' '--style:a
 # --- go-var-notype auto-fix ('var x int' -> 'var x: int') ------------------
 for form in 'var x int|var x: int' 'let y string|let y: string' 'const z f|const z: f' 'var p* int|var p*: int'; do
   bad="${form%|*}"; good="${form#*|}"
-  printf '%s\n' "$bad" > "$WORK/gv.nim"
-  "$AS" fix --no-config --write "$WORK/gv.nim" >/dev/null 2>&1
-  [ "$good" = "$(cat "$WORK/gv.nim")" ] || { echo "FAIL: go-var fix '$bad' -> $(cat "$WORK/gv.nim")"; fail=1; }
+  printf '%s\n' "$bad" > "$WORK/gv.aowl"
+  "$AS" fix --no-config --write "$WORK/gv.aowl" >/dev/null 2>&1
+  [ "$good" = "$(cat "$WORK/gv.aowl")" ] || { echo "FAIL: go-var fix '$bad' -> $(cat "$WORK/gv.aowl")"; fail=1; }
 done
-printf 'var x: int\n' > "$WORK/gv2.nim"      # already-typed must be untouched
-v="$(cat "$WORK/gv2.nim")"
-"$AS" fix --no-config --write "$WORK/gv2.nim" >/dev/null 2>&1
-[ "$v" = "$(cat "$WORK/gv2.nim")" ] || { echo "FAIL: go-var fix touched a typed binding"; fail=1; }
+printf 'var x: int\n' > "$WORK/gv2.aowl"      # already-typed must be untouched
+v="$(cat "$WORK/gv2.aowl")"
+"$AS" fix --no-config --write "$WORK/gv2.aowl" >/dev/null 2>&1
+[ "$v" = "$(cat "$WORK/gv2.aowl")" ] || { echo "FAIL: go-var fix touched a typed binding"; fail=1; }
 
 # --- angle-bracket-generics auto-fix ('proc f<T>()' -> 'proc f[T]()') ------
-printf 'proc f<T>(x: T) = discard\n' > "$WORK/ag.nim"
-"$AS" fix --no-config --write "$WORK/ag.nim" >/dev/null 2>&1
-[ "proc f[T](x: T) = discard" = "$(cat "$WORK/ag.nim")" ] || { echo "FAIL: angle fix -> $(cat "$WORK/ag.nim")"; fail=1; }
-printf 'proc g<T, U>(a: T, b: U) = discard\n' > "$WORK/ag2.nim"
-"$AS" fix --no-config --write "$WORK/ag2.nim" >/dev/null 2>&1
-[ "proc g[T, U](a: T, b: U) = discard" = "$(cat "$WORK/ag2.nim")" ] || { echo "FAIL: multi-param angle fix -> $(cat "$WORK/ag2.nim")"; fail=1; }
+printf 'proc f<T>(x: T) = discard\n' > "$WORK/ag.aowl"
+"$AS" fix --no-config --write "$WORK/ag.aowl" >/dev/null 2>&1
+[ "proc f[T](x: T) = discard" = "$(cat "$WORK/ag.aowl")" ] || { echo "FAIL: angle fix -> $(cat "$WORK/ag.aowl")"; fail=1; }
+printf 'proc g<T, U>(a: T, b: U) = discard\n' > "$WORK/ag2.aowl"
+"$AS" fix --no-config --write "$WORK/ag2.aowl" >/dev/null 2>&1
+[ "proc g[T, U](a: T, b: U) = discard" = "$(cat "$WORK/ag2.aowl")" ] || { echo "FAIL: multi-param angle fix -> $(cat "$WORK/ag2.aowl")"; fail=1; }
 
 # --- arrow-return-type auto-fix ('proc f() -> T' -> 'proc f(): T') ---------
-printf 'proc g() -> int = 2\n' > "$WORK/ar.nim"
-"$AS" fix --no-config --write "$WORK/ar.nim" >/dev/null 2>&1
-[ "proc g(): int = 2" = "$(cat "$WORK/ar.nim")" ] || { echo "FAIL: arrow-return fix -> $(cat "$WORK/ar.nim")"; fail=1; }
+printf 'proc g() -> int = 2\n' > "$WORK/ar.aowl"
+"$AS" fix --no-config --write "$WORK/ar.aowl" >/dev/null 2>&1
+[ "proc g(): int = 2" = "$(cat "$WORK/ar.aowl")" ] || { echo "FAIL: arrow-return fix -> $(cat "$WORK/ar.aowl")"; fail=1; }
 # a sugar lambda must be left untouched
-printf 'import std/sugar\nlet f = (x: int) -> x + 1\n' > "$WORK/ar2.nim"
-a2="$(cat "$WORK/ar2.nim")"
-"$AS" fix --no-config --write "$WORK/ar2.nim" >/dev/null 2>&1
-[ "$a2" = "$(cat "$WORK/ar2.nim")" ] || { echo "FAIL: arrow fix touched a sugar lambda"; fail=1; }
+printf 'import std/sugar\nlet f = (x: int) -> x + 1\n' > "$WORK/ar2.aowl"
+a2="$(cat "$WORK/ar2.aowl")"
+"$AS" fix --no-config --write "$WORK/ar2.aowl" >/dev/null 2>&1
+[ "$a2" = "$(cat "$WORK/ar2.aowl")" ] || { echo "FAIL: arrow fix touched a sugar lambda"; fail=1; }
 
 # --- else-if-not-elif auto-fix ('else if' -> 'elif') -----------------------
-printf 'if a:\n  discard\nelse if b:\n  discard\n' > "$WORK/ei.nim"
-"$AS" fix --no-config --write "$WORK/ei.nim" >/dev/null 2>&1
-[ "elif b:" = "$(sed -n '3p' "$WORK/ei.nim")" ] || { echo "FAIL: else if -> elif: $(sed -n '3p' "$WORK/ei.nim")"; fail=1; }
-"$AS" check --no-config "$WORK/ei.nim" >/dev/null 2>&1 || { echo "FAIL: else-if fix left an error"; fail=1; }
+printf 'if a:\n  discard\nelse if b:\n  discard\n' > "$WORK/ei.aowl"
+"$AS" fix --no-config --write "$WORK/ei.aowl" >/dev/null 2>&1
+[ "elif b:" = "$(sed -n '3p' "$WORK/ei.aowl")" ] || { echo "FAIL: else if -> elif: $(sed -n '3p' "$WORK/ei.aowl")"; fail=1; }
+"$AS" check --no-config "$WORK/ei.aowl" >/dev/null 2>&1 || { echo "FAIL: else-if fix left an error"; fail=1; }
 # a valid else: block containing an if must be untouched
-printf 'if a:\n  discard\nelse:\n  if b:\n    discard\n' > "$WORK/ei2.nim"
-v="$(cat "$WORK/ei2.nim")"
-"$AS" fix --no-config --write "$WORK/ei2.nim" >/dev/null 2>&1
-[ "$v" = "$(cat "$WORK/ei2.nim")" ] || { echo "FAIL: else-if fix touched a valid else block"; fail=1; }
+printf 'if a:\n  discard\nelse:\n  if b:\n    discard\n' > "$WORK/ei2.aowl"
+v="$(cat "$WORK/ei2.aowl")"
+"$AS" fix --no-config --write "$WORK/ei2.aowl" >/dev/null 2>&1
+[ "$v" = "$(cat "$WORK/ei2.aowl")" ] || { echo "FAIL: else-if fix touched a valid else block"; fail=1; }
 
 # --- unterminated-backtick is a SUGGESTION, never auto-applied -------------
 # where the closing backtick belongs is ambiguous (idents can hold spaces/ops),
 # so aowlsuggest suggests it rather than guessing.
-printf 'let `a = 1\n' > "$WORK/bt.nim"
-btout="$("$AS" fix --no-config "$WORK/bt.nim" 2>&1)"
+printf 'let `a = 1\n' > "$WORK/bt.aowl"
+btout="$("$AS" fix --no-config "$WORK/bt.aowl" 2>&1)"
 grep -q 'help: add the closing backtick' <<<"$btout" || { echo "FAIL: no backtick suggestion"; fail=1; }
-"$AS" fix --no-config --write "$WORK/bt.nim" >/dev/null 2>&1
-[ "$(printf 'let `a = 1\n')" = "$(cat "$WORK/bt.nim")" ] || { echo "FAIL: backtick was wrongly auto-applied"; fail=1; }
+"$AS" fix --no-config --write "$WORK/bt.aowl" >/dev/null 2>&1
+[ "$(printf 'let `a = 1\n')" = "$(cat "$WORK/bt.aowl")" ] || { echo "FAIL: backtick was wrongly auto-applied"; fail=1; }
 
 # --- redundant-semicolon: opt-in auto-fix, param-separator safe ------------
-printf 'let x = 5;\necho x\n' > "$WORK/sc.nim"
-grep -q 'redundant-semicolon' <<<"$("$AS" check --no-config "$WORK/sc.nim" 2>&1)" && {
+printf 'let x = 5;\necho x\n' > "$WORK/sc.aowl"
+grep -q 'redundant-semicolon' <<<"$("$AS" check --no-config "$WORK/sc.aowl" 2>&1)" && {
   echo "FAIL: redundant-semicolon must be OFF by default"; fail=1; }
-"$AS" fix --no-config --style:semicolons --write "$WORK/sc.nim" >/dev/null 2>&1
-[ "let x = 5" = "$(sed -n '1p' "$WORK/sc.nim")" ] || { echo "FAIL: trailing ; not removed: $(sed -n '1p' "$WORK/sc.nim")"; fail=1; }
+"$AS" fix --no-config --style:semicolons --write "$WORK/sc.aowl" >/dev/null 2>&1
+[ "let x = 5" = "$(sed -n '1p' "$WORK/sc.aowl")" ] || { echo "FAIL: trailing ; not removed: $(sed -n '1p' "$WORK/sc.aowl")"; fail=1; }
 # a ';' param separator inside a multi-line proc() must be left ALONE
-printf 'proc f(a: int;\n       b: int) = discard\n' > "$WORK/sc2.nim"
-sc2="$(cat "$WORK/sc2.nim")"
-"$AS" fix --no-config --style:semicolons --write "$WORK/sc2.nim" >/dev/null 2>&1
-[ "$sc2" = "$(cat "$WORK/sc2.nim")" ] || { echo "FAIL: param-separator ; was wrongly removed"; fail=1; }
+printf 'proc f(a: int;\n       b: int) = discard\n' > "$WORK/sc2.aowl"
+sc2="$(cat "$WORK/sc2.aowl")"
+"$AS" fix --no-config --style:semicolons --write "$WORK/sc2.aowl" >/dev/null 2>&1
+[ "$sc2" = "$(cat "$WORK/sc2.aowl")" ] || { echo "FAIL: param-separator ; was wrongly removed"; fail=1; }
 
 # --- c-style-operator: opt-in, SUGGESTION-only (&&/|| are definable) -------
-printf 'if a && b:\n  discard\n' > "$WORK/co.nim"
+printf 'if a && b:\n  discard\n' > "$WORK/co.aowl"
 # off by default
-grep -q 'c-style-operator' <<<"$("$AS" check --no-config "$WORK/co.nim" 2>&1)" && {
+grep -q 'c-style-operator' <<<"$("$AS" check --no-config "$WORK/co.aowl" 2>&1)" && {
   echo "FAIL: c-style-operator must be OFF by default"; fail=1; }
 # opt-in surfaces a suggestion
-coout="$("$AS" fix --no-config --style:c-operators "$WORK/co.nim" 2>&1)"
+coout="$("$AS" fix --no-config --style:c-operators "$WORK/co.aowl" 2>&1)"
 grep -q "help: use 'and'" <<<"$coout" || { echo "FAIL: no c-operators suggestion"; fail=1; }
 # never auto-applied (definable operator + precedence): file untouched by --write
-"$AS" fix --no-config --style:c-operators --write "$WORK/co.nim" >/dev/null 2>&1
-grep -q '&&' "$WORK/co.nim" || { echo "FAIL: c-style-operator was wrongly auto-applied"; fail=1; }
+"$AS" fix --no-config --style:c-operators --write "$WORK/co.aowl" >/dev/null 2>&1
+grep -q '&&' "$WORK/co.aowl" || { echo "FAIL: c-style-operator was wrongly auto-applied"; fail=1; }
 
 # --- KB fallback suggestion for a bare value-error -------------------------
 # aowlparser attaches no `fix` to invalid-escape-sequence; aowlsuggest supplies a
 # knowledge-base hint so the diagnostic still tells you what to do.
-printf 'let s = "a\\qb"\n' > "$WORK/esc.nim"
-esout="$("$AS" fix --no-config "$WORK/esc.nim" 2>&1)"
+printf 'let s = "a\\qb"\n' > "$WORK/esc.aowl"
+esout="$("$AS" fix --no-config "$WORK/esc.aowl" 2>&1)"
 grep -q 'invalid-escape-sequence' <<<"$esout" || { echo "FAIL: escape diag missing"; fail=1; }
 grep -q 'help: use a valid escape' <<<"$esout" || { echo "FAIL: no KB fallback suggestion for bare value-error"; fail=1; }
 # it stays a SUGGESTION — never auto-applied (the file is untouched by --write)
-before="$(cat "$WORK/esc.nim")"
-"$AS" fix --no-config --write "$WORK/esc.nim" >/dev/null 2>&1
-[ "$before" = "$(cat "$WORK/esc.nim")" ] || { echo "FAIL: value-error was wrongly auto-applied"; fail=1; }
+before="$(cat "$WORK/esc.aowl")"
+"$AS" fix --no-config --write "$WORK/esc.aowl" >/dev/null 2>&1
+[ "$before" = "$(cat "$WORK/esc.aowl")" ] || { echo "FAIL: value-error was wrongly auto-applied"; fail=1; }
 
 # --- version ---------------------------------------------------------------
 "$AS" version 2>&1 | grep -q 'aowlsuggest ' || { echo "FAIL: version output"; fail=1; }

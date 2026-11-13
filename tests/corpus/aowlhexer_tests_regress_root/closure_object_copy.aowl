@@ -1,0 +1,20 @@
+import std/syncio
+type
+  Fn = proc(): int {.closure.}
+  B = object
+    s: string
+    f: Fn
+proc mk(x: int): Fn =
+  result = proc(): int {.closure.} = x + 1
+proc use(s: seq[B]) =
+  let n = s[0]
+  discard n.f()
+proc main =
+  let s = @[B(s: "x", f: mk(1))]
+  for k in 0..<10:
+    use(s)
+    var junk: seq[string] = @[]
+    for q in 0..<50:
+      junk.add("xxxxxxxxxxxxxxxxxxxxxxxxx" & $q)
+  echo s[0].f()
+main()

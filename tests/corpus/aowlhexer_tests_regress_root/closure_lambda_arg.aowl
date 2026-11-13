@@ -1,0 +1,17 @@
+## A lambda as an argument of a closure call: the call is written twice, with an environment and
+## without, and the lambda was lifted twice. Also a call through an alias of a closure type.
+import std/syncio
+
+proc higher(): int =
+  let g = proc(cb: proc(x: int): int {.closure.}; v: int): int {.closure.} = cb(v)
+  var n = 2
+  g(proc(x: int): int {.closure.} = x * n, 21)
+echo higher()
+
+type Cb = proc(x: int): int {.closure.}
+
+proc viaAlias(): int =
+  var k = 3
+  let g: Cb = proc(x: int): int {.closure.} = x + k
+  g(1)
+echo viaAlias()

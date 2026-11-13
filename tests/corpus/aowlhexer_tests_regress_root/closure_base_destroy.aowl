@@ -1,0 +1,26 @@
+import std/syncio
+import closure_base_destroy_lib
+type
+  S = ref object of Base
+    t: Trk
+  # a string beside the closure: the frontend's hook knows just the string
+  O = object
+    s: string
+    cb: proc(): int {.closure.}
+proc plain() =
+  let b = mkBase(1)
+  echo "plain ", b.cb(b), " ", alive
+proc viaBase() =
+  let a = S(cb: keep(2), t: newTrk(3))
+  let b = Base(a)
+  echo "viaBase ", b.cb(b), " ", alive
+proc fieldBeside() =
+  let t = newTrk(4)
+  let o = O(s: "x", cb: proc(): int {.closure.} = t.id)
+  echo "beside ", o.cb(), " ", alive
+plain()
+echo alive
+viaBase()
+echo alive
+fieldBeside()
+echo alive

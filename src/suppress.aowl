@@ -1,6 +1,6 @@
-## suppress.nim — honour inline suppression comments so a project can silence a
+## suppress.aowl — honour inline suppression comments so a project can silence a
 ## diagnostic it has accepted. This scans SOURCE LINES for a marker; it does not
-## parse Nim (the marker is found by substring, requiring a preceding '#').
+## parse aowlmony (the marker is found by substring, requiring a preceding '#').
 ##
 ## Markers (in a `#` comment):
 ##   # aowlsuggest:ignore                  suppress every diagnostic on this line

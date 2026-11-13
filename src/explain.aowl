@@ -1,4 +1,4 @@
-## explain.nim — a curated knowledge base for aowlparser's diagnostic codes:
+## explain.aowl — a curated knowledge base for aowlparser's diagnostic codes:
 ## what each one means, a minimal bad/good example, and whether aowlsuggest can
 ## repair it automatically.
 ##
@@ -31,28 +31,28 @@ proc knowledgeBase*(): seq[CodeInfo] =
         "almost always a typo for '='.",
       badExample: "let x == 5", goodExample: "let x = 5", autofixable: true),
     CodeInfo(code: "walrus-in-binding",
-      title: "Walrus ':=' where a Nim binding wants '='",
-      explanation: "':=' is the Pascal/Go assignment operator; a Nim " &
+      title: "Walrus ':=' where an aowlmony binding wants '='",
+      explanation: "':=' is the Pascal/Go assignment operator; an aowlmony " &
         "let/const/var binding assigns with a plain '='. (':=' lexes as one " &
         "operator, distinct from a ':' type annotation.)",
       badExample: "let x := 5", goodExample: "let x = 5", autofixable: true),
     CodeInfo(code: "double-colon",
-      title: "'::' scope resolution — Nim qualifies with '.'",
+      title: "'::' scope resolution — aowlmony qualifies with '.'",
       explanation: "'::' (a C++ scope-resolution habit, `std::vector`) is not " &
-        "valid Nim. NOT auto-fixed: the intended repair is '.' (qualify a name, " &
+        "valid aowlmony. NOT auto-fixed: the intended repair is '.' (qualify a name, " &
         "`std.vector`) or a single ':' (a mistyped annotation) — only you know " &
         "which, so it is offered as a suggestion.",
       badExample: "std::vector", goodExample: "std.vector", autofixable: false),
     CodeInfo(code: "c-brace-body",
-      title: "C-style '{ }' block body — Nim uses an indented body",
-      explanation: "Nim writes a routine body as '= <indented statements>', not " &
+      title: "C-style '{ }' block body — aowlmony uses an indented body",
+      explanation: "aowlmony writes a routine body as '= <indented statements>', not " &
         "'{ … }' braces (a C/Java/JS/Rust habit). NOT auto-fixed: turning the " &
         "braces into an indented block is a reformat only you should confirm.",
       badExample: "proc f() { echo 1 }", goodExample: "proc f() =\n  echo 1",
       autofixable: false),
     CodeInfo(code: "foreign-function-keyword",
-      title: "'fn' / 'function' / 'fun' is not a Nim keyword — use 'proc'",
-      explanation: "Nim defines a routine with 'proc' (or func/method/…), not the " &
+      title: "'fn' / 'function' / 'fun' is not an aowlmony keyword — use 'proc'",
+      explanation: "aowlmony defines a routine with 'proc' (or func/method/…), not the " &
         "Rust 'fn', JS 'function' or Kotlin 'fun' keyword, and uses an indented " &
         "body after '=' rather than a '{ }' block. NOT auto-fixed: 'proc name() = " &
         "<indented body>' replaces both the keyword and the whole brace body, a " &
@@ -60,8 +60,8 @@ proc knowledgeBase*(): seq[CodeInfo] =
       badExample: "fn main() {\n  echo 1\n}", goodExample: "proc main() =\n  echo 1",
       autofixable: false),
     CodeInfo(code: "foreign-block-keyword",
-      title: "'class' / 'struct' / 'namespace' … is not a Nim keyword",
-      explanation: "Nim declares a type with 'type Name = object' (or ref object / " &
+      title: "'class' / 'struct' / 'namespace' … is not an aowlmony keyword",
+      explanation: "aowlmony declares a type with 'type Name = object' (or ref object / " &
         "enum / concept), not the 'class'/'struct'/'interface'/'impl'/'trait' block " &
         "of another language, and a module is a FILE — there is no 'namespace'/" &
         "'module' block. NOT auto-fixed: mapping the '{ }' block to a 'type … = " &
@@ -69,63 +69,63 @@ proc knowledgeBase*(): seq[CodeInfo] =
       badExample: "class Foo {\n  x: int\n}", goodExample: "type Foo = object\n  x: int",
       autofixable: false),
     CodeInfo(code: "foreign-case-block",
-      title: "'switch' / 'match' is not a Nim keyword — use 'case'",
-      explanation: "Nim's multi-way branch is 'case <expr>:' with indented 'of' " &
+      title: "'switch' / 'match' is not an aowlmony keyword — use 'case'",
+      explanation: "aowlmony's multi-way branch is 'case <expr>:' with indented 'of' " &
         "branches, not the C/Java/Rust/Scala 'switch'/'match' with a '{ }' body. " &
         "NOT auto-fixed: reshaping the arms into 'of' branches is a rewrite only " &
         "you should confirm.",
       badExample: "switch x {\n  1: a\n}", goodExample: "case x\nof 1: a",
       autofixable: false),
     CodeInfo(code: "do-while-loop",
-      title: "Nim has no 'do { } while' loop — use 'while'",
-      explanation: "Nim has no C/JS 'do { } while' loop. Use 'while <cond>:'; for " &
+      title: "aowlmony has no 'do { } while' loop — use 'while'",
+      explanation: "aowlmony has no C/JS 'do { } while' loop. Use 'while <cond>:'; for " &
         "run-at-least-once semantics, 'while true:' with a trailing 'if not <cond>: " &
         "break'. NOT auto-fixed: the loop body and exit test must be placed by you.",
       badExample: "do {\n  step()\n} while cond", goodExample: "while true:\n  step()\n  if not cond: break",
       autofixable: false),
     CodeInfo(code: "ruby-block-params",
-      title: "Ruby 'do |x|' block params — Nim uses 'do (x):'",
-      explanation: "Nim writes a block parameter list as 'do (x): <body>', not the " &
+      title: "Ruby 'do |x|' block params — aowlmony uses 'do (x):'",
+      explanation: "aowlmony writes a block parameter list as 'do (x): <body>', not the " &
         "Ruby 'do |x|' pipes. NOT auto-fixed: the parameter types and body layout " &
         "are yours to write.",
       badExample: "xs.each do |i|\n  echo i", goodExample: "xs.each do (i: int):\n  echo i",
       autofixable: false),
     CodeInfo(code: "c-block-comment",
-      title: "C-style '/* … */' comment — Nim uses '#[ … ]#'",
-      explanation: "Nim's block comment is '#[ … ]#' (and a line comment is '#'), " &
+      title: "C-style '/* … */' comment — aowlmony uses '#[ … ]#'",
+      explanation: "aowlmony's block comment is '#[ … ]#' (and a line comment is '#'), " &
         "not the C/C++/Java/JS '/* … */'. aowlsuggest swaps the delimiters " &
         "('/* x */' becomes '#[ x ]#'); if the body itself would close the block " &
         "the verify loop discards the edit and it stays a suggestion.",
       badExample: "/* a comment */", goodExample: "#[ a comment ]#",
       autofixable: true),
     CodeInfo(code: "foreign-routine-clause",
-      title: "'throws' / 'where' / 'override' / 'noexcept' clause — Nim uses a pragma",
-      explanation: "Nim declares a routine's raised effects with a pragma " &
+      title: "'throws' / 'where' / 'override' / 'noexcept' clause — aowlmony uses a pragma",
+      explanation: "aowlmony declares a routine's raised effects with a pragma " &
         "('{.raises: [IOError].}' — or '{.raises: [].}' for C++ 'noexcept'), not a " &
         "Java 'throws' clause; a generic constraint goes in the brackets " &
         "('proc f[T: Constraint]()'), not a Rust/Swift/C# 'where' clause; and an " &
-        "'override' is implicit (Nim uses 'method' for dynamic dispatch). NOT " &
+        "'override' is implicit (aowlmony uses 'method' for dynamic dispatch). NOT " &
         "auto-fixed: the pragma or constraint placement is a change you should confirm.",
       badExample: "proc f() throws IOError", goodExample: "proc f() {.raises: [IOError].}",
       autofixable: false),
     CodeInfo(code: "extends-inheritance",
-      title: "'extends' is not Nim — inherit with 'object of Base'",
-      explanation: "Nim expresses inheritance as 'type Foo = object of Base' (or " &
+      title: "'extends' is not aowlmony — inherit with 'object of Base'",
+      explanation: "aowlmony expresses inheritance as 'type Foo = object of Base' (or " &
         "'ref object of Base'), not the Java/TS/Scala 'type Foo extends Base'. NOT " &
         "auto-fixed: whether the type is a value 'object' or a 'ref object', and " &
         "where the base goes, is a design choice you should make.",
-      badExample: "type Dog extends Animal = object",
-      goodExample: "type Dog = object of Animal", autofixable: false),
+      badExample: "type Dog extends Beast = object",
+      goodExample: "type Dog = object of Beast", autofixable: false),
     CodeInfo(code: "yield-from",
-      title: "Nim has no 'yield from' — iterate and yield",
-      explanation: "Python's 'yield from xs' (delegate to a sub-iterator) is " &
-        "written in Nim as an explicit loop: 'for x in xs: yield x'. NOT " &
+      title: "aowlmony has no 'yield from' — iterate and yield",
+      explanation: "The scripting-language 'yield from xs' (delegate to a sub-iterator) is " &
+        "written in aowlmony as an explicit loop: 'for x in xs: yield x'. NOT " &
         "auto-fixed: the loop variable and body are yours to name.",
       badExample: "yield from xs", goodExample: "for x in xs: yield x",
       autofixable: false),
     CodeInfo(code: "async-routine-prefix",
-      title: "'async proc' — Nim marks async with a '{.async.}' pragma",
-      explanation: "Nim has no 'async' routine prefix (the JS/Python/C#/Rust form). " &
+      title: "'async proc' — aowlmony marks async with a '{.async.}' pragma",
+      explanation: "aowlmony has no 'async' routine prefix (the JS/C#/Rust form). " &
         "A routine is made async with the '{.async.}' pragma: 'proc f() {.async.} = " &
         "…'. NOT auto-fixed: moving the marker to a pragma is a change you confirm.",
       badExample: "async proc f() = …", goodExample: "proc f() {.async.} = …",
@@ -149,7 +149,7 @@ proc knowledgeBase*(): seq[CodeInfo] =
       title: "'not x in y' means '(not x) in y' — likely 'x notin y'",
       explanation: "An idiom hint on VALID code (opt-in via '--style:idioms'). " &
         "Unary 'not' binds tighter than the 'in' operator, so 'not x in y' parses " &
-        "as '(not x) in y' — the Python migrant almost always wants membership " &
+        "as '(not x) in y' — the scripting-language migrant almost always wants membership " &
         "negation, 'x notin y'. NOT auto-fixed: on the rare occasion '(not x) in y' " &
         "is intended, only you know, so the rewrite is yours.",
       badExample: "if not k in seen:", goodExample: "if k notin seen:",
@@ -175,7 +175,7 @@ proc knowledgeBase*(): seq[CodeInfo] =
     CodeInfo(code: "nil-comparison",
       title: "'x == nil' — some projects prefer 'x.isNil'",
       explanation: "An OPINION, off by default — enable it per project in a " &
-        "'.aowlsuggest' [rules] section (or '--rule:nil-comparison=…'). Nim can " &
+        "'.aowlsuggest' [rules] section (or '--rule:nil-comparison=…'). aowlmony can " &
         "write a nil check as 'x.isNil' / 'not x.isNil' instead of 'x == nil' / " &
         "'x != nil'; neither is wrong, so this only fires where a project opts in.",
       badExample: "if p == nil:", goodExample: "if p.isNil:", autofixable: false),
@@ -183,15 +183,15 @@ proc knowledgeBase*(): seq[CodeInfo] =
       title: "A literal on the left of '==' (a 'yoda' compare)",
       explanation: "An OPINION, off by default — enable it per project in a " &
         "'.aowlsuggest' [rules] section (or '--rule:yoda-condition=…'). Writing " &
-        "'0 == x' guards against '=' typos in C; Nim has no such foot-gun (a bare " &
+        "'0 == x' guards against '=' typos in C; aowlmony has no such foot-gun (a bare " &
         "'=' isn't a valid condition), so the natural 'x == 0' reads better.",
       badExample: "if 0 == n:", goodExample: "if n == 0:", autofixable: false),
     CodeInfo(code: "redundant-parens-condition",
       title: "Parentheses around a whole control-flow condition",
       explanation: "An OPINION, off by default — enable it per project in a " &
         "'.aowlsuggest' [rules] section (or '--rule:redundant-parens-condition=…'). " &
-        "Nim needs no parens around an 'if'/'elif'/'while'/'when' condition, so " &
-        "'if (x):' is a C/Java/Python habit. Only the FULLY-wrapping case fires — a " &
+        "aowlmony needs no parens around an 'if'/'elif'/'while'/'when' condition, so " &
+        "'if (x):' is a C/Java habit. Only the FULLY-wrapping case fires — a " &
         "load-bearing group like '(let y = f(); y != 0)' or a sub-expression " &
         "'(a or b) and c' is never flagged.",
       badExample: "if (x == 5):", goodExample: "if x == 5:", autofixable: false),
@@ -215,7 +215,7 @@ proc knowledgeBase*(): seq[CodeInfo] =
       title: "'0 .. n - 1' — prefer the half-open '0 ..< n'",
       explanation: "An OPINION, off by default — enable it per project in a " &
         "'.aowlsuggest' [rules] section (or '--rule:manual-range-index=…'). An " &
-        "inclusive range ending in '<expr> - 1' is exactly Nim's half-open '..< " &
+        "inclusive range ending in '<expr> - 1' is exactly aowlmony's half-open '..< " &
         "<expr>', which states the intent (a count/length) with no off-by-one to " &
         "get wrong. Fires only when the range end literally ends in a binary '- 1'.",
       badExample: "for i in 0 .. a.len - 1:", goodExample: "for i in 0 ..< a.len:",
@@ -258,7 +258,7 @@ proc knowledgeBase*(): seq[CodeInfo] =
       title: "'addr'/'unsafeAddr' takes a raw address",
       explanation: "An OPINION, off by default — enable it per project in a " &
         "'.aowlsuggest' [rules] section (or '--rule:addr-of=…'). Taking a raw " &
-        "address escapes Nim's memory safety; a project can surface every 'addr' / " &
+        "address escapes aowlmony's memory safety; a project can surface every 'addr' / " &
         "'unsafeAddr' for review. Passing by 'var'/'ref' keeps the checks.",
       badExample: "let p = addr buf[0]", goodExample: "proc use(x: var T) = …",
       autofixable: false),
@@ -266,8 +266,8 @@ proc knowledgeBase*(): seq[CodeInfo] =
       title: "Inline 'asm' is non-portable and unchecked",
       explanation: "An OPINION, off by default — enable it per project in a " &
         "'.aowlsuggest' [rules] section (or '--rule:asm-block=…'). An inline 'asm' " &
-        "block ties the code to one CPU/toolchain and bypasses every Nim check; " &
-        "prefer a Nim or C-FFI implementation where feasible.",
+        "block ties the code to one CPU/toolchain and bypasses every aowlmony check; " &
+        "prefer an aowlmony or C-FFI implementation where feasible.",
       badExample: "asm \"\"\"nop\"\"\"", goodExample: "proc nop() {.importc.}",
       autofixable: false),
     CodeInfo(code: "float-equality",
@@ -281,53 +281,53 @@ proc knowledgeBase*(): seq[CodeInfo] =
       badExample: "if x == 0.1:", goodExample: "if abs(x - 0.1) < 1e-9:",
       autofixable: false),
     CodeInfo(code: "stray-end",
-      title: "Stray 'end' — Nim uses indentation",
+      title: "Stray 'end' — aowlmony uses indentation",
       explanation: "'end' is a reserved keyword with no statement form (a " &
-        "Ruby/Pascal/Lua block terminator). Nim delimits blocks by indentation, " &
+        "Ruby/Pascal/Lua block terminator). aowlmony delimits blocks by indentation, " &
         "so aowlsuggest removes the stray 'end'.",
       badExample: "…block…\nend", goodExample: "…block…", autofixable: true),
     CodeInfo(code: "mut-not-a-keyword",
       title: "'mut' is not a keyword — a mutable binding is 'var'",
-      explanation: "Nim has no 'mut' keyword (the Rust mutable-binding habit). A " &
+      explanation: "aowlmony has no 'mut' keyword (the Rust mutable-binding habit). A " &
         "mutable binding is introduced with 'var'. aowlsuggest rewrites " &
         "'let/var/const mut x' to 'var x'. A variable literally named 'mut' " &
         "('let mut = 5') and the 'x: var int' type modifier are left untouched.",
       badExample: "let mut x = 5", goodExample: "var x = 5", autofixable: true),
     CodeInfo(code: "go-var-notype",
       title: "'var x int' — a typed binding needs a ':'",
-      explanation: "Nim writes a typed binding as 'name: Type', not the " &
+      explanation: "aowlmony writes a typed binding as 'name: Type', not the " &
         "Go/Java/C#/Swift 'name type'. aowlsuggest inserts the ':' — " &
         "'var x int' becomes 'var x: int'. An export marker is preserved " &
         "('var x* int' → 'var x*: int').",
       badExample: "var x int", goodExample: "var x: int", autofixable: true),
     CodeInfo(code: "angle-bracket-generics",
-      title: "'<T>' angle-bracket generics — Nim uses '[T]'",
-      explanation: "Nim writes generic parameters in square brackets, not the " &
+      title: "'<T>' angle-bracket generics — aowlmony uses '[T]'",
+      explanation: "aowlmony writes generic parameters in square brackets, not the " &
         "C++/Java/Rust/TS angle brackets. aowlsuggest rewrites 'proc f<T>()' to " &
         "'proc f[T]()' (finding the matching '>').",
       badExample: "proc f<T>()", goodExample: "proc f[T]()", autofixable: true),
     CodeInfo(code: "arrow-return-type",
-      title: "'->' return-type arrow — Nim uses ': type'",
-      explanation: "Nim declares a routine's return type after a colon, not " &
-        "with a '->' arrow (a Rust/Python-3/C++ habit). aowlsuggest rewrites " &
+      title: "'->' return-type arrow — aowlmony uses ': type'",
+      explanation: "aowlmony declares a routine's return type after a colon, not " &
+        "with a '->' arrow (a Rust/C++ habit). aowlsuggest rewrites " &
         "'proc f() -> T' to 'proc f(): T'.",
       badExample: "proc f() -> int", goodExample: "proc f(): int", autofixable: true),
     CodeInfo(code: "else-if-not-elif",
-      title: "'else if' is not Nim — use 'elif'",
-      explanation: "Nim's condition-chain keyword is 'elif'; 'else' must be " &
-        "followed directly by ':'. Writing 'else if' (a C/Python habit) is " &
+      title: "'else if' is not aowlmony — use 'elif'",
+      explanation: "aowlmony's condition-chain keyword is 'elif'; 'else' must be " &
+        "followed directly by ':'. Writing 'else if' (a C habit) is " &
         "always malformed. aowlsuggest collapses it to 'elif'.",
       badExample: "else if b:", goodExample: "elif b:", autofixable: true),
     CodeInfo(code: "c-style-operator",
       title: "C boolean operator '&&' / '||' — use 'and' / 'or'",
-      explanation: "Nim spells boolean and/or as the words 'and'/'or', not " &
+      explanation: "aowlmony spells boolean and/or as the words 'and'/'or', not " &
         "'&&'/'||'. Opt in with --style:c-operators. NOT auto-fixed: '&&'/'||' " &
         "are definable operators and 'and'/'or' bind at a different precedence, " &
         "so the rewrite is offered as a suggestion for you to confirm.",
       badExample: "if a && b:", goodExample: "if a and b:", autofixable: false),
     CodeInfo(code: "redundant-semicolon",
       title: "Redundant trailing ';'",
-      explanation: "Nim separates statements by newline, so a trailing ';' at " &
+      explanation: "aowlmony separates statements by newline, so a trailing ';' at " &
         "the end of a statement is redundant. Opt in with --style:semicolons; " &
         "aowlsuggest deletes it. Only a STATEMENT-LEVEL ';' is flagged — a ';' " &
         "inside (...) is a parameter separator and is left alone.",

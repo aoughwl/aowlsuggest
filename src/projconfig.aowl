@@ -1,4 +1,4 @@
-## projconfig.nim — the optional per-project `.aowlsuggest` config file.
+## projconfig.aowl — the optional per-project `.aowlsuggest` config file.
 ##
 ## A repo can commit its lint/style defaults so `lint`, `fix`, and `lsp-server`
 ## all behave identically without repeating flags on every invocation — and so an
@@ -58,6 +58,18 @@ proc indexOf(s: string; c: char; startAt = 0): int =
     inc i
   return -1
 
+proc isAbsPath(p: string): bool =
+  ## A rooted path: leading '/' or '\', or a Windows drive prefix (`C:/`, `C:\`).
+  if p.len == 0: return false
+  if p[0] == '/' or p[0] == '\\': return true
+  p.len >= 2 and p[1] == ':' and ((p[0] >= 'a' and p[0] <= 'z') or (p[0] >= 'A' and p[0] <= 'Z'))
+
+proc slashes(p: string): string =
+  ## Normalise backslashes to forward slashes (the rest of the module is '/').
+  result = ""
+  for i in 0 ..< p.len:
+    if p[i] == '\\': result.add '/' else: result.add p[i]
+
 proc parentDirStr(p: string): string =
   ## The parent directory of `p` (expected absolute), or "" past the root.
   var i = p.len - 1
@@ -65,10 +77,12 @@ proc parentDirStr(p: string): string =
   while i >= 0 and p[i] != '/': dec i          # skip the last component
   if i < 0: return ""
   if i == 0: return "/"                          # "/x" -> "/"
+  if i == 2 and p[1] == ':': return substr(p, 0, 2)   # "C:/x" -> "C:/"
   result = substr(p, 0, i - 1)
 
-proc dirNameOf(p: string): string =
-  ## Directory portion of a file path ("/a/b/f.nim" -> "/a/b"; "f.nim" -> "").
+proc dirNameOf(pIn: string): string =
+  ## Directory portion of a file path ("/a/b/f.aowl" -> "/a/b"; "f.aowl" -> "").
+  let p = slashes(pIn)
   var i = p.len - 1
   while i >= 0 and p[i] != '/': dec i
   if i < 0: return ""
@@ -189,13 +203,13 @@ proc discoverConfigPathFrom*(anchor: string): string =
   ## `anchor` is empty. "" if none / the cwd is unavailable.
   var cwd = ""
   try:
-    cwd = $dirs.getCurrentDir()
+    cwd = slashes($dirs.getCurrentDir())
   except:
     cwd = ""
-  var start = anchor
+  var start = slashes(anchor)
   if start.len == 0:
     start = cwd
-  elif start[0] != '/' and cwd.len > 0:
+  elif not isAbsPath(start) and cwd.len > 0:
     start = cwd & "/" & start
   if start.len == 0: return ""
   result = findConfigPath(start)

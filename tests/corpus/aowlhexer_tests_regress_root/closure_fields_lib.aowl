@@ -1,0 +1,7 @@
+type
+  Lib* = ref object
+    addTo*: proc(k: int): int {.closure.}
+    other*: proc(): int {.closure.}
+
+proc makeLib*(n: int): Lib =
+  Lib(addTo: (proc(k: int): int {.closure.} = n + k), other: (proc(): int {.closure.} = n))

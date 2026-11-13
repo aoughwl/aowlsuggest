@@ -1,6 +1,6 @@
-## contract.nim — the seam between aowlsuggest and aowlparser.
+## contract.aowl — the seam between aowlsuggest and aowlparser.
 ##
-## aowlsuggest NEVER lexes or parses Nim itself. Every diagnostic it works with
+## aowlsuggest NEVER lexes or parses aowlmony itself. Every diagnostic it works with
 ## is produced INSIDE aowlparser's recovering parse and handed over across this
 ## one boundary: `aowlparser check --diagnostics:json <file>`. This module runs
 ## that subprocess, reads its structured JSON, and models the result as a typed
@@ -17,9 +17,9 @@
 ## grow), and only the genuinely-required fields (code, line, col) being absent
 ## is treated as a hard error.
 
-import std/[json, syncio, envvars, paths, dirs, strutils]
-import aowlkit/subprocess
-import aowlkit/tempfile
+import std/[syncio, envvars, paths, dirs, strutils]
+import jsonref
+import subproc
 
 type
   Severity* = enum
@@ -60,14 +60,21 @@ type
 
 proc defaultParserBin*(): string =
   ## Path to the aowlparser binary. Overridable with $AOWLPARSER so the contract
-  ## boundary is never hard-wired to one checkout.
+  ## boundary is never hard-wired to one checkout. The default is the toolchain
+  ## checkout under the user's home: ~/dev/toolchain/aifparser/bin/aowlparser.exe.
   result = ""
   try:
     result = getEnv("AOWLPARSER")
   except:
     result = ""
   if result.len == 0:
-    result = "/home/savant/aifparser/bin/aowlparser"
+    var home = ""
+    try:
+      home = getEnv("USERPROFILE")
+      if home.len == 0: home = getEnv("HOME")
+    except:
+      home = ""
+    result = home & "/dev/toolchain/aifparser/bin/aowlparser.exe"
 
 
 proc severityFromStr(s: string): Severity =
@@ -77,41 +84,27 @@ proc severityFromStr(s: string): Severity =
   of "hint": sevHint
   else: sevError
 
-proc parseRelated(n: JsonNode; d: var Diagnostic) =
-  for k, v in pairs(n):
-    case k
-    of "message": d.relMsg = v.getStr
-    of "line": d.relLine = int(v.getInt)
-    of "col": d.relCol = int(v.getInt)
-    else: discard
-  d.hasRelated = true
-
-proc parseOne(el: JsonNode; d: var Diagnostic; err: var string) =
-  ## Decode one diagnostic object. Values are pulled out DURING iteration: the
-  ## JSON node handles are lazy cursors that go stale once the enclosing iterator
-  ## advances, so nothing is stored for later.
+proc parseOne(el: JsonValue; d: var Diagnostic; err: var string) =
+  ## Decode one diagnostic object. Unknown fields are ignored.
   d = Diagnostic(severity: sevError, code: "", message: "", line: 0, col: 0,
                  endCol: 0, fix: "", hasRelated: false, relMsg: "",
                  relLine: 0, relCol: 0)
-  var sawCode = false
-  var sawLine = false
-  var sawCol = false
-  for k, v in pairs(el):
-    case k
-    of "severity": d.severity = severityFromStr(v.getStr)
-    of "code":
-      d.code = v.getStr; sawCode = true
-    of "message": d.message = v.getStr
-    of "line":
-      d.line = int(v.getInt); sawLine = true
-    of "col":
-      d.col = int(v.getInt); sawCol = true
-    of "endCol": d.endCol = int(v.getInt)
-    of "fix": d.fix = v.getStr
-    of "related": parseRelated(v, d)
-    else: discard   # tolerate unknown/future fields
-  if not (sawCode and sawLine and sawCol):
+  if not (el.hasKey("code") and el.hasKey("line") and el.hasKey("col")):
     err = "diagnostic missing a required field (code/line/col)"
+    return
+  d.severity = severityFromStr(el{"severity"}.getStr(""))
+  d.code = el{"code"}.getStr("")
+  d.message = el{"message"}.getStr("")
+  d.line = int(el{"line"}.getInt(0))
+  d.col = int(el{"col"}.getInt(0))
+  d.endCol = int(el{"endCol"}.getInt(0))
+  d.fix = el{"fix"}.getStr("")
+  if el.hasKey("related"):
+    let r = el{"related"}
+    d.relMsg = r{"message"}.getStr("")
+    d.relLine = int(r{"line"}.getInt(0))
+    d.relCol = int(r{"col"}.getInt(0))
+    d.hasRelated = true
 
 proc parseDiagnostics*(jsonText: string; err: var string): seq[Diagnostic] =
   ## Decode aowlparser's `--diagnostics:json` array. An empty/`[]` document is a
@@ -122,18 +115,17 @@ proc parseDiagnostics*(jsonText: string; err: var string): seq[Diagnostic] =
   let trimmed = strip(jsonText)
   if trimmed.len == 0:
     return
-  var tree = default(JsonTree)
-  try:
-    tree = parseJson(jsonText)
-  except:
+  var perr = ""
+  let arr = parseJson(jsonText, perr)
+  if perr.len > 0:
     err = "aowlparser produced output that is not valid JSON"
     return
-  var arr = tree.root
-  if arr.kind != JArray:
+  if arr.kindOf != jnArray:
     err = "aowlparser JSON root is not an array"
     return
-  for el in items(arr):
-    if el.kind != JObject:
+  for i in 0 ..< arr.len:
+    let el = arr.at(i)
+    if el.kindOf != jnObject:
       err = "aowlparser JSON array element is not an object"
       return
     var d = default(Diagnostic)
@@ -163,8 +155,8 @@ proc parseCheckOutput*(jsonText: string; exitCode: int): CheckResult =
 
 proc runCheckerOnFile*(parserBin, file: string; extra = ""): CheckResult =
   ## Run `parserBin check --diagnostics:json <extra> <file>`, capturing its JSON
-  ## via a temp file (aowlparser emits the whole array on ONE line, and nimony's
-  ## execCmdEx line-capture mangles lines longer than its buffer — a file
+  ## via a temp file (aowlparser emits the whole array on ONE line, and a
+  ## line-buffered pipe capture can split such a line — a file
   ## redirect reads the output whole and is immune). Never raises.
   ##
   ## `extra` is a pre-composed run of aowlparser flags that opt in to its
@@ -172,8 +164,8 @@ proc runCheckerOnFile*(parserBin, file: string; extra = ""): CheckResult =
   ## `--final-newline:require`, `--newline:lf`, `--bom:reject`, …). Callers build
   ## it from a fixed whitelist (see the CLI's `styleFlags`), so it never carries
   ## user-controlled shell text. Empty by default → the plain, zero-FP check.
-  # aowlkit.captureShell redirects the checker's stdout to a temp file and reads
-  # it whole — immune to nimony's execCmdEx long-line mangling (aowlparser emits
+  # captureShell redirects the checker's stdout to a temp file and reads
+  # it whole — immune to line-buffer splitting (aowlparser emits
   # the whole diagnostic array on ONE line).
   var cmd = shellQuote(parserBin) & " check --diagnostics:json"
   if extra.len > 0: cmd.add " " & extra
@@ -186,12 +178,12 @@ proc runCheckerOnFile*(parserBin, file: string; extra = ""): CheckResult =
   result = parseCheckOutput(cap.output, cap.exitCode)
 
 proc checkSource*(parserBin, src: string; extra = ""): CheckResult =
-  ## Check an in-memory source string by materialising it to a temp `.nim` file
+  ## Check an in-memory source string by materialising it to a temp `.aowl` file
   ## and running the checker over it. This is how the fix engine verifies a
   ## candidate edit without touching the user's file. `extra` carries the same
   ## opt-in lint flags as `runCheckerOnFile`, so a candidate is re-checked under
   ## the SAME policy that surfaced the diagnostic being fixed.
-  let srcPath = tempPath("cand", ".nim")
+  let srcPath = tempPath("cand", ".aowl")
   try:
     writeFile(srcPath, src)
   except:

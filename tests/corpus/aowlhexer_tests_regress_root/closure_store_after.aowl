@@ -1,0 +1,10 @@
+## A store to a captured local after the closure was made: the closure took the environment
+## by move, as a store through the local is no read of it, and the store went through nil.
+import std/syncio
+
+proc after(): int =
+  var n = 0
+  let f = proc(): int {.closure.} = n
+  n = 1
+  f()
+echo after()

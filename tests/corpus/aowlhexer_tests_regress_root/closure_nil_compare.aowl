@@ -1,0 +1,23 @@
+## `c != nil` on a closure is a pointer comparison of `(hconv pointer c)`: gcc was asked to cast the
+## two-word closure to a pointer.
+import std/syncio
+
+type
+  H = ref object
+    cb: proc (x: int) {.closure.}
+    cbs: seq[proc (x: int) {.closure.}]
+
+proc run(h: H) =
+  if h.cb != nil:
+    h.cb(1)
+  for c in h.cbs:
+    if c != nil:
+      c(2)
+    if c == nil:
+      echo "nil"
+
+let h = H()
+h.cbs.add(proc (x: int) {.closure.} = echo x)
+run(h)
+h.cb = proc (x: int) {.closure.} = echo x + 10
+run(h)

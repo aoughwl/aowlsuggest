@@ -1,0 +1,115 @@
+# A local of a loop body is a new variable per iteration, the loop variable too.
+import std/syncio
+type Fn = proc(): int {.closure.}
+# loop local (let), loop variable, while local, a block in a loop, written back
+proc p1() =
+  var fs: seq[Fn] = @[]
+  for i in 0 .. 2:
+    let k = i * 10
+    fs.add(proc(): int {.closure.} = k)
+  for f in fs: echo "letlocal ", f()
+proc p2() =
+  var fs: seq[Fn] = @[]
+  for i in 0 .. 2:
+    fs.add(proc(): int {.closure.} = i)
+  for f in fs: echo "loopvar ", f()
+proc p3() =
+  var fs: seq[Fn] = @[]
+  var n = 0
+  while n < 3:
+    let k = n
+    fs.add(proc(): int {.closure.} = k)
+    inc n
+  for f in fs: echo "while ", f()
+proc p4() =
+  # a counter per iteration
+  var fs: seq[Fn] = @[]
+  for i in 0 .. 1:
+    var c = i * 100
+    fs.add(proc(): int {.closure.} =
+      inc c
+      c)
+  echo "counter ", fs[0](), " ", fs[0](), " ", fs[1]()
+proc p5() =
+  # the factory is how to get a value per iteration today
+  proc mk(k: int): Fn =
+    result = proc(): int {.closure.} = k
+  var fs: seq[Fn] = @[]
+  for i in 0 .. 2:
+    fs.add mk(i)
+  for f in fs: echo "factory ", f()
+proc p6() =
+  # shared by intent: a variable from outside the loop
+  var total = 0
+  var fs: seq[Fn] = @[]
+  for i in 0 .. 1:
+    fs.add(proc(): int {.closure.} =
+      inc total
+      total)
+  echo "outer ", fs[0](), " ", fs[1]()
+p1()
+p2()
+p3()
+p4()
+p5()
+p6()
+# nested loops, the closure sees both levels and a local of the routine
+proc p7() =
+  var base = 1000
+  var fs: seq[Fn] = @[]
+  for i in 0 .. 1:
+    let a = i * 10
+    for j in 0 .. 1:
+      let b = j
+      fs.add(proc(): int {.closure.} = base + a + b)
+  base = 2000
+  for f in fs: echo "nested ", f()
+# continue, break, return with a loop environment
+proc p8(): int =
+  result = -1
+  var fs: seq[Fn] = @[]
+  for i in 0 .. 5:
+    let k = i
+    if i == 1: continue
+    fs.add(proc(): int {.closure.} = k)
+    if i == 3: break
+  for f in fs: echo "cb ", f()
+  for i in 0 .. 5:
+    let k = i * 2
+    let f = proc(): int {.closure.} = k
+    if f() == 4: return k
+let r8 = p8()
+echo "ret ", r8
+# code of the loop body uses the captured local directly, and writes it
+proc p10() =
+  var fs: seq[Fn] = @[]
+  for i in 0 .. 1:
+    var c = i
+    let f = proc(): int {.closure.} =
+      inc c
+      c
+    c = c + 10
+    discard f()
+    echo "direct ", c
+    fs.add f
+  echo "after ", fs[0](), " ", fs[1]()
+# not escaping: a stack environment
+proc p11() =
+  for i in 0 .. 1:
+    var s = i
+    proc add1() {.closure.} = inc s
+    add1()
+    echo "stack ", s
+# a captured string per iteration, freed with its closure
+proc p12() =
+  var fs: seq[proc(): string {.closure.}] = @[]
+  for i in 0 .. 2:
+    let s = "string number " & $i & " long enough to be on the heap ........."
+    fs.add(proc(): string {.closure.} = s)
+  for f in fs:
+    let r = f()
+    echo "str ", r.len, " ", r[14]
+p7()
+p10()
+p11()
+p12()

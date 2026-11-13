@@ -1,0 +1,22 @@
+import std/syncio
+type
+  Fn = proc(): int {.closure.}
+  K = enum kA, kB
+  C = object
+    case kind: K
+    of kA: f: Fn
+    of kB: n: int
+proc mk(x: int): Fn =
+  result = proc(): int {.closure.} = x + 1
+proc use(s: seq[C]) =
+  let n = s[0]
+  discard n.f()
+proc main =
+  let s = @[C(kind: kA, f: mk(1))]
+  for k in 0..<10:
+    use(s)
+    var junk: seq[string] = @[]
+    for q in 0..<50:
+      junk.add("xxxxxxxxxxxxxxxxxxxxxxxxx" & $q)
+  echo s[0].f()
+main()

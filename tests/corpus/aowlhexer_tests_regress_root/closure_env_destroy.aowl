@@ -1,0 +1,35 @@
+import std/syncio
+type
+  Trk = object
+    id: int
+  V = ref object
+    f: proc(x: int): int {.closure.}
+var alive = 0
+proc `=destroy`(t: Trk) =
+  if t.id != 0: dec alive
+proc `=wasMoved`(t: var Trk) = t.id = 0
+proc `=dup`(t: Trk): Trk =
+  if t.id != 0: inc alive
+  Trk(id: t.id)
+proc newTrk(i: int): Trk =
+  inc alive
+  Trk(id: i)
+proc mkV(): V =
+  let t = newTrk(1)
+  V(f: proc(x: int): int {.closure.} = x + t.id)
+proc mkPlain(): proc(x: int): int {.closure.} =
+  let t = newTrk(1)
+  result = proc(x: int): int {.closure.} = x + t.id
+proc go() =
+  let v = mkV()
+  for i in 0 ..< 3:
+    discard v.f(i)
+    echo alive
+proc go2() =
+  let p = mkPlain()
+  discard p(1)
+  echo alive
+go()
+echo alive
+go2()
+echo alive

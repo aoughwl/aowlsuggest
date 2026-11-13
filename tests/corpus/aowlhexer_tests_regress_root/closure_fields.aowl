@@ -1,0 +1,39 @@
+## Two closure fields over one environment: the first field's `dup` ran after the second's move and
+## duplicated nil. And a closure field called from a module that declares no closures of its own
+## (the `callLib` module below), which handed the C compiler a tuple to call.
+import std/syncio
+import closure_fields_lib
+import closure_fields_call
+
+type
+  E = ref object
+    n: int
+  V = ref object
+    a: proc(): int {.closure.}
+    b: proc(): int {.closure.}
+    self: proc(): E {.closure.}
+
+proc mk(e: E): V =
+  V(a: (proc(): int {.closure.} = e.n), b: (proc(): int {.closure.} = e.n + 1),
+    self: (proc(): E {.closure.} = e))
+
+proc plain(n: int): V =
+  V(a: (proc(): int {.closure.} = n), b: (proc(): int {.closure.} = 2),
+    self: (proc(): E {.closure.} = E(n: n)))
+
+proc bump(x: int): int = x + 1
+
+proc named(x: int): tuple[a: int, b: int] =
+  # A named tuple's value sits under a `kv` with a call in it.
+  (a: bump(x), b: bump(x + 1))
+
+proc go() =
+  let v = mk(E(n: 41))
+  echo v.a(), " ", v.b(), " ", v.self().n
+  let p = plain(7)
+  echo p.a(), " ", p.b(), " ", p.self().n
+  echo callLib(makeLib(3), 4)
+  let t = named(-9)
+  echo t.a, " ", t.b
+
+go()

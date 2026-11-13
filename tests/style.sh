@@ -17,10 +17,8 @@
 #       (whitespace / BOM — proven by stripping them and comparing), and (3) is
 #       idempotent. A style fix can therefore never change what the program means.
 set -u
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-AS="${AOWLSUGGEST:-$ROOT/bin/aowlsuggest}"
-export AOWLPARSER="${AOWLPARSER:-$HOME/aifparser/bin/aowlparser}"
-work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+work="$(mkwork)"; trap 'rm -rf "$work"' EXIT
 fail=0
 
 note() { echo "  $1"; }
@@ -35,55 +33,54 @@ check_has() { # <flags> <file> <code>
 }
 
 echo "== (A) trailing-whitespace =="
-printf 'let x = 1   \nlet y = 2\n' > "$work/tw.nim"
-check_has "" "$work/tw.nim" trailing-whitespace && die "trailing-ws leaked into DEFAULT mode"
-check_has "--pedantic" "$work/tw.nim" trailing-whitespace || die "trailing-ws not flagged under --pedantic"
-"$AS" fix --no-config --pedantic --write "$work/tw.nim" >/dev/null 2>&1
-[ "$(printf 'let x = 1\nlet y = 2\n')" = "$(cat "$work/tw.nim")" ] || die "trailing-ws not removed cleanly"
-check_has "--pedantic" "$work/tw.nim" trailing-whitespace && die "trailing-ws still present after fix"
+printf 'let x = 1   \nlet y = 2\n' > "$work/tw.aowl"
+check_has "" "$work/tw.aowl" trailing-whitespace && die "trailing-ws leaked into DEFAULT mode"
+check_has "--pedantic" "$work/tw.aowl" trailing-whitespace || die "trailing-ws not flagged under --pedantic"
+"$AS" fix --no-config --pedantic --write "$work/tw.aowl" >/dev/null 2>&1
+[ "$(printf 'let x = 1\nlet y = 2\n')" = "$(cat "$work/tw.aowl")" ] || die "trailing-ws not removed cleanly"
+check_has "--pedantic" "$work/tw.aowl" trailing-whitespace && die "trailing-ws still present after fix"
 note "ok"
 
 echo "== (A) missing-final-newline =="
-printf 'let a = 1' > "$work/fn.nim"   # no trailing newline
-check_has "" "$work/fn.nim" missing-final-newline && die "final-newline leaked into DEFAULT mode"
-check_has "--style:final-newline" "$work/fn.nim" missing-final-newline || die "final-newline not flagged"
-"$AS" fix --no-config --style:final-newline --write "$work/fn.nim" >/dev/null 2>&1
-[ "$(printf 'let a = 1\n')" = "$(cat "$work/fn.nim")" ] || die "final newline not appended"
+printf 'let a = 1' > "$work/fn.aowl"   # no trailing newline
+check_has "" "$work/fn.aowl" missing-final-newline && die "final-newline leaked into DEFAULT mode"
+check_has "--style:final-newline" "$work/fn.aowl" missing-final-newline || die "final-newline not flagged"
+"$AS" fix --no-config --style:final-newline --write "$work/fn.aowl" >/dev/null 2>&1
+[ "$(printf 'let a = 1\n')" = "$(cat "$work/fn.aowl")" ] || die "final newline not appended"
 note "ok"
 
 echo "== (A) line-ending CRLF->LF =="
-printf 'let a = 1\r\nlet b = 2\r\n' > "$work/eol.nim"
-check_has "" "$work/eol.nim" line-ending && die "line-ending leaked into DEFAULT mode"
-check_has "--style:lf" "$work/eol.nim" line-ending || die "CRLF not flagged under --style:lf"
-"$AS" fix --no-config --style:lf --write "$work/eol.nim" >/dev/null 2>&1
-if grep -q $'\r' "$work/eol.nim"; then die "CR not removed"; fi
-check_has "--style:lf" "$work/eol.nim" line-ending && die "line-ending still present after fix"
+printf 'let a = 1\r\nlet b = 2\r\n' > "$work/eol.aowl"
+check_has "" "$work/eol.aowl" line-ending && die "line-ending leaked into DEFAULT mode"
+check_has "--style:lf" "$work/eol.aowl" line-ending || die "CRLF not flagged under --style:lf"
+"$AS" fix --no-config --style:lf --write "$work/eol.aowl" >/dev/null 2>&1
+if grep -q $'\r' "$work/eol.aowl"; then die "CR not removed"; fi
+check_has "--style:lf" "$work/eol.aowl" line-ending && die "line-ending still present after fix"
 note "ok"
 
 echo "== (A) bom-rejected =="
-printf '\xEF\xBB\xBFlet z = 3\n' > "$work/bom.nim"
-check_has "" "$work/bom.nim" bom-rejected && die "bom leaked into DEFAULT mode"
-check_has "--style:bom" "$work/bom.nim" bom-rejected || die "BOM not flagged under --style:bom"
-"$AS" fix --no-config --style:bom --write "$work/bom.nim" >/dev/null 2>&1
-[ "$(printf 'let z = 3\n')" = "$(cat "$work/bom.nim")" ] || die "BOM not stripped"
+printf '\xEF\xBB\xBFlet z = 3\n' > "$work/bom.aowl"
+check_has "" "$work/bom.aowl" bom-rejected && die "bom leaked into DEFAULT mode"
+check_has "--style:bom" "$work/bom.aowl" bom-rejected || die "BOM not flagged under --style:bom"
+"$AS" fix --no-config --style:bom --write "$work/bom.aowl" >/dev/null 2>&1
+[ "$(printf 'let z = 3\n')" = "$(cat "$work/bom.aowl")" ] || die "BOM not stripped"
 note "ok"
 
 echo "== (A) cascade: trailing-ws AND missing-final-newline together =="
-printf 'let p = 1   \nlet q = 2   ' > "$work/both.nim"   # trailing ws + no EOF newline
-"$AS" fix --no-config --pedantic --write "$work/both.nim" >/dev/null 2>&1
-[ "$(printf 'let p = 1\nlet q = 2\n')" = "$(cat "$work/both.nim")" ] || die "cascade fix wrong"
+printf 'let p = 1   \nlet q = 2   ' > "$work/both.aowl"   # trailing ws + no EOF newline
+"$AS" fix --no-config --pedantic --write "$work/both.aowl" >/dev/null 2>&1
+[ "$(printf 'let p = 1\nlet q = 2\n')" = "$(cat "$work/both.aowl")" ] || die "cascade fix wrong"
 note "ok"
 
 echo "== (B) unknown --style category is rejected =="
-"$AS" check --no-config --style:bogus "$work/tw.nim" >/dev/null 2>&1 && die "bogus --style category accepted"
+"$AS" check --no-config --style:bogus "$work/tw.aowl" >/dev/null 2>&1 && die "bogus --style category accepted"
 note "ok"
 
 # ── (C) program-preservation sweep over the valid corpus ─────────────────────
 
 echo "== (C) program preservation across the valid corpus (fix --pedantic) =="
-CORPUS_DIRS="${CORPUS_DIRS:-/home/savant/nimony/src /home/savant/nimony/lib /home/savant/Nim/lib}"
-SAMPLE_STRIDE="${SAMPLE_STRIDE:-5}"
-mapfile -t ALL < <(find $CORPUS_DIRS -name '*.nim' 2>/dev/null | sort)
+SAMPLE_STRIDE="${SAMPLE_STRIDE:-2}"
+mapfile -t ALL < <(valid_corpus)
 FILES=()
 for ((i=0; i<${#ALL[@]}; i+=SAMPLE_STRIDE)); do FILES+=("${ALL[$i]}"); done
 echo "  sample: ${#FILES[@]} of ${#ALL[@]} valid files (stride $SAMPLE_STRIDE)"
@@ -91,12 +88,11 @@ echo "  sample: ${#FILES[@]} of ${#ALL[@]} valid files (stride $SAMPLE_STRIDE)"
 
 # strip insignificant bytes (leading BOM + all whitespace) for the "same program"
 # comparison. If two files agree after this, the fix touched only whitespace/BOM.
-strip_insig() { python3 - "$1" <<'PY'
-import sys
-b=open(sys.argv[1],'rb').read()
-if b[:3]==b'\xef\xbb\xbf': b=b[3:]
-sys.stdout.buffer.write(bytes(c for c in b if c not in (0x20,0x09,0x0d,0x0a)))
-PY
+strip_insig() {
+  # drop a leading UTF-8 BOM, then every space/tab/CR/LF
+  local first; first="$(head -c 3 "$1" | od -An -tx1 | tr -d ' \n')"
+  if [ "$first" = "efbbbf" ]; then tail -c +4 "$1" | tr -d ' \t\r\n'
+  else tr -d ' \t\r\n' < "$1"; fi
 }
 
 changed=0; broke=0; nonidem=0; touched=0

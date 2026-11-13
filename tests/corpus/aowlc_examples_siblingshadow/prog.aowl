@@ -1,0 +1,7 @@
+import std/syncio
+import ma, entry
+bump()
+var s = emptySheet()
+addRule(s, "a")
+var t = s
+echo count(t) + Rule

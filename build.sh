@@ -1,50 +1,33 @@
 #!/usr/bin/env bash
-# Build aowlsuggest with the Nimony compiler (self-hosted). aowlsuggest consumes
-# aowlparser purely as a subprocess over its JSON contract, so no `-p:` include
-# paths are needed — only nimony's own stdlib.
+# build.sh -- build bin/aowlsuggest.exe with aowlmony. Fails loudly when no exe
+# is produced (the compiler exits 0 even then; the exe lands in nimcache/<hash>/).
 #
-# The nimony toolchain serializes native codegen through a single shared build
-# lock; parallel sessions contend on it, so we take an flock before invoking the
-# compiler and print BUILD-OK / BUILD-FAIL then a DONE marker the caller waits on.
-#
-# Override the compiler with NIMONY=/path/to/nimony.
-set -uo pipefail
+# Overrides: AOWLMONY_ROOT (toolchain root; default ~/dev/toolchain/aowlmony/root),
+#            AOWLJSONREF  (jsonref src dir; default ~/dev/jsonref/src).
+set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NIMONY="${NIMONY:-$HOME/nimony/bin/nimony}"
-AOWLKIT="${AOWLKIT:-$HOME/aowlkit/src}"
-LOCK="${NIMONY_BUILD_LOCK:-$HOME/.nimony-build.lock}"
-cd "$ROOT"
-
-build() {
-  "$NIMONY" c --base:src -p:"$AOWLKIT" -d:nimony src/aowlsuggest.nim 2>&1
-}
-
-run_locked() {
-  if command -v flock >/dev/null 2>&1; then
-    exec 9>"$LOCK"
-    flock 9
-  fi
-  build
-}
-
-log="$(run_locked)"; rc=$?
-# nimony `c` can exit 0 even on failure, so treat any `Error:` line as failure.
-if [ $rc -ne 0 ] || grep -qE '(^|[^a-zA-Z])Error:' <<<"$log"; then
-  echo "$log" | grep -E 'Error:' | head -20
-  echo "BUILD-FAIL"
-  echo "BUILD-DONE"
+AOWLMONY_ROOT="${AOWLMONY_ROOT:-$HOME/dev/toolchain/aowlmony/root}"
+JSONREF="${AOWLJSONREF:-$HOME/dev/jsonref/src}"
+COMPILER="$AOWLMONY_ROOT/bin/aowlmony.exe"
+[[ -x "$COMPILER" ]] || { echo "build.sh: no compiler at $COMPILER" >&2; exit 1; }
+if command -v cygpath >/dev/null 2>&1; then
+  export AOWLMONY_ROOT="$(cygpath -w "$AOWLMONY_ROOT")"
+  JSONREF="$(cygpath -m "$JSONREF")"
+fi
+mkdir -p "$ROOT/bin"
+log="$ROOT/bin/build.log"
+exe=""
+for attempt in 1 2; do   # the shared nimcache_static can make one build fail spuriously
+  rm -f "$ROOT"/src/nimcache/*/aowlsuggest.exe 2>/dev/null || true
+  ( cd "$ROOT/src" && "$COMPILER" c -d:release --path:"$JSONREF" --path:"$ROOT/src" aowlsuggest.aowl ) >"$log" 2>&1 || true
+  exe="$(ls -t "$ROOT"/src/nimcache/*/aowlsuggest.exe 2>/dev/null | head -1 || true)"
+  [[ -n "$exe" ]] && break
+done
+if [[ -z "$exe" ]]; then
+  echo "FAILED: no aowlsuggest.exe produced (see $log)" >&2
+  grep -E 'Error' "$log" | head -20 >&2 || true
   exit 1
 fi
-
-mkdir -p bin
-exe="$(find nimcache -type f -name aowlsuggest -executable -printf '%T@ %p\n' 2>/dev/null \
-       | sort -rn | head -1 | cut -d' ' -f2-)"
-if [ -z "${exe:-}" ]; then
-  echo "build.sh: could not locate built aowlsuggest in nimcache/" >&2
-  echo "BUILD-FAIL"; echo "BUILD-DONE"
-  exit 1
-fi
-cp "$exe" bin/aowlsuggest
-echo "built bin/aowlsuggest"
-echo "BUILD-OK"
-echo "BUILD-DONE"
+cp "$exe" "$ROOT/bin/aowlsuggest.exe"
+rm -f "$log"
+echo "built bin/aowlsuggest.exe"

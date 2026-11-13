@@ -1,0 +1,41 @@
+## jsonout.aowl -- hand-built JSON output helpers.
+##
+## Reading JSON goes through `jsonref`; this module covers the WRITE side every
+## command needs: correct string escaping plus a few tiny fragment builders.
+
+proc jsonEscape*(s: string): string =
+  ## Escape a string's contents per the JSON spec (no surrounding quotes).
+  result = ""
+  for i in 0 ..< s.len:
+    let c = s[i]
+    case c
+    of '"': result.add "\\\""
+    of '\\': result.add "\\\\"
+    of '\n': result.add "\\n"
+    of '\t': result.add "\\t"
+    of '\r': result.add "\\r"
+    of '\b': result.add "\\b"
+    of '\f': result.add "\\f"
+    else:
+      if c < ' ':
+        const hexd = "0123456789abcdef"
+        result.add "\\u00"
+        result.add hexd[(ord(c) shr 4) and 0xF]
+        result.add hexd[ord(c) and 0xF]
+      else:
+        result.add c
+
+proc jStr*(s: string): string =
+  ## A quoted, escaped JSON string literal.
+  "\"" & jsonEscape(s) & "\""
+
+proc jBool*(b: bool): string =
+  if b: "true" else: "false"
+
+proc jArr*(items: seq[string]): string =
+  ## A JSON array of already-rendered element fragments.
+  result = "["
+  for i in 0 ..< items.len:
+    if i > 0: result.add ","
+    result.add items[i]
+  result.add "]"

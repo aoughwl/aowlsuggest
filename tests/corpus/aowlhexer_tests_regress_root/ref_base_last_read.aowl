@@ -1,0 +1,21 @@
+import std/syncio
+type
+  B = ref object of RootObj
+    n: int
+  D = ref object of B
+    x: int
+proc f(): B =
+  let r = D(x: 1)
+  r.n = 2
+  r
+echo f().n
+proc g(): B =
+  let r = D(x: 3)
+  r.n = 4
+  result = B(r)
+echo g().n
+proc h() =
+  let a = D(x: 5)
+  let b = B(a)
+  echo b != nil
+h()

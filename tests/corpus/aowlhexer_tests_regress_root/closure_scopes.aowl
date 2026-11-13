@@ -1,0 +1,51 @@
+## Captured locals in nested scopes of their routine, and the temps of an inlined iterator, whose
+## names start over in every routine: two routines capturing one shared a slot of the first's env.
+import std/syncio
+
+proc forLocal() =
+  for i in 0 .. 1:
+    let x = i + 10
+    let f = proc(): int {.closure.} = x + i
+    echo f()
+forLocal()
+
+proc blockLocal(): int =
+  result = 0
+  block:
+    var y = 2
+    let f = proc(): int {.closure.} = y * 2
+    y = 3
+    result = f()
+echo blockLocal()
+
+proc mkAll(): seq[proc(): int {.closure.}] =
+  result = @[]
+  for i in 0 .. 2:
+    let k = i
+    result.add(proc(): int {.closure.} = k)
+let fs = mkAll()
+echo fs.len, " ", fs[2]()
+
+proc twoLoops(xs: seq[int]): int =
+  result = 0
+  for a in xs:
+    let f = proc(ys: seq[int]): int {.closure.} =
+      var t = a
+      for b in ys:
+        t = t + b
+      t
+    result = result + f(xs)
+  for c in xs:
+    let g = proc(): int {.closure.} = c
+    result = result + g()
+echo twoLoops(@[1, 2])
+
+type Item = object
+  name: string
+
+proc overSeq(list: seq[Item]): int =
+  result = 0
+  for e in list:
+    let f = proc(): int {.closure.} = e.name.len
+    result = result + f()
+echo overSeq(@[Item(name: "ab"), Item(name: "cde")])

@@ -1,0 +1,15 @@
+## A local spelled like a field next to a nested `for`: the field was renamed along with the local.
+import std/syncio
+
+type
+  G = object
+    slots: seq[string]
+
+proc main() =
+  let list = @[G(slots: @["a"])]
+  for e in list:
+    var slots = ""
+    for s in e.slots:
+      slots.add(s)
+    echo slots
+main()

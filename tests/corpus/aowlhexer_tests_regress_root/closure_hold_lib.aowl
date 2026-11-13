@@ -1,0 +1,5 @@
+## Declares closure types and no closure proc at all.
+type
+  V* = ref object
+    f*: proc(a: bool): bool {.closure.}
+    g*: proc(s: string): int {.closure.}

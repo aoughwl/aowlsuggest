@@ -1,0 +1,11 @@
+type
+  T* = ref object
+    key*: proc(x: int): string {.closure.}
+  Cb* = proc(x: int): int {.closure.}
+
+proc mk*(k: string): T =
+  T(key: proc(x: int): string {.closure.} = k & $x)
+
+proc takeCb*(c: Cb; x: int): int = c(x)
+proc retCb*(k: int): Cb = (proc(x: int): int {.closure.} = x + k)
+proc retBare*(k: int): proc(): int {.closure.} = (proc(): int {.closure.} = k)

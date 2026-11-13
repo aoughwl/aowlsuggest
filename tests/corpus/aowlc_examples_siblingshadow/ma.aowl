@@ -1,0 +1,16 @@
+type
+  Simple = object
+    tag: string
+    classes: seq[string]
+  Rule = object
+    parts: seq[Simple]
+    weight: int
+  Sheet* = object
+    rules: seq[Rule]
+    propName*: seq[string]
+    problem*: string
+
+proc emptySheet*(): Sheet = Sheet(rules: @[], propName: @[], problem: "")
+proc addRule*(s: var Sheet; sel: string) = s.rules.add Rule(parts: @[Simple(tag: sel, classes: @[sel])], weight: s.rules.len)
+proc count*(s: Sheet): int = s.rules.len
+proc merge*(a, b: Sheet): int = a.rules.len + b.rules.len

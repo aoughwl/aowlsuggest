@@ -1,0 +1,56 @@
+## A store through a ref after its last plain read: the store was not seen as a use of the ref, so
+## the read became a move and the store went through nil. No closure anywhere in this one.
+import std/syncio
+
+type
+  R = ref object
+    v: int
+    s: string
+  Holder = object
+    r: R
+    n: int
+
+proc direct(): int =
+  var r = R(v: 1, s: "a")
+  let b = r
+  r.v = 2
+  b.v
+
+proc viaField(): int =
+  var h = Holder(r: R(v: 1, s: "a"), n: 0)
+  let b = h.r
+  h.r.v = 3
+  b.v
+
+proc wholeHolder(): int =
+  var h = Holder(r: R(v: 1, s: "a"), n: 0)
+  let c = h
+  h.r.v = 4
+  c.r.v
+
+proc managed(): string =
+  var r = R(v: 1, s: "a")
+  let b = r
+  r.s = "changed"
+  b.s
+
+proc thenReplaced(): int =
+  # A plain store to the variable itself still ends its old value.
+  var r = R(v: 5, s: "a")
+  let b = r
+  r = R(v: 6, s: "b")
+  b.v + r.v
+
+proc partialOnly(): string =
+  # A store into an object held by value still leaves the earlier read a move.
+  var h = Holder(r: R(v: 7, s: "x"), n: 0)
+  let c = h
+  h.n = 9
+  $c.n & c.r.s
+
+echo direct()
+echo viaField()
+echo wholeHolder()
+echo managed()
+echo thenReplaced()
+echo partialOnly()

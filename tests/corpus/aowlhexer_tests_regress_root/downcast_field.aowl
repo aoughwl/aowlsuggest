@@ -1,0 +1,19 @@
+## A downcast of something that is not a plain symbol: the temp holding it was unknown to the type
+## cache when the runtime check asked for its type.
+import std/syncio
+
+type
+  B = ref object of RootObj
+    x: int
+  D = ref object of B
+    v: int
+  H = ref object
+    b: B
+
+proc viaField(h: H): int =
+  let d = D(h.b)
+  d.v
+
+let h = H(b: D(x: 1, v: 5))
+let d = D(h.b)
+echo d.v, " ", viaField(h)

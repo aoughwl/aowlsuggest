@@ -1,0 +1,84 @@
+# A `ref` of a base class destroys the object it really points to.
+import std/syncio
+type
+  Trk = object
+    id: int
+var alive = 0
+proc `=destroy`(t: Trk) =
+  if t.id != 0: dec alive
+proc `=wasMoved`(t: var Trk) = t.id = 0
+proc `=dup`(t: Trk): Trk =
+  if t.id != 0: inc alive
+  Trk(id: t.id)
+proc `=copy`(d: var Trk; s: Trk) =
+  if d.id != 0: dec alive
+  if s.id != 0: inc alive
+  d.id = s.id
+proc newTrk(i: int): Trk =
+  inc alive
+  Trk(id: i)
+type
+  B = ref object of RootObj
+    n: Trk
+  D = ref object of B
+    t: Trk
+  B2 = ref object of RootObj
+    n: int
+  D2 = ref object of B2
+    t: Trk
+  M = object of RootObj
+    n: int
+  N = object of M
+    t: Trk
+  MyErr = object of Exception
+    t: Trk
+proc t1() =
+  let x: B = D(n: newTrk(1), t: newTrk(1))
+  echo "t1 in ", alive
+proc t2() =
+  let x: B2 = D2(t: newTrk(1))
+  echo "t2 in ", alive
+proc t3() =
+  let r = (ref N)(t: newTrk(3))
+  echo "t3 in ", alive
+proc t4() =
+  let b: B2 = D2(n: 3, t: newTrk(2))
+  echo "t4 in ", alive, " ", b.n
+proc t5() =
+  # a seq of base refs holding derived objects
+  var s: seq[B2] = @[]
+  s.add D2(t: newTrk(1))
+  s.add B2(n: 1)
+  s.add D2(t: newTrk(2))
+  echo "t5 in ", alive, " ", s.len
+proc t6() =
+  # a reassignment releases the old derived object
+  var b: B2 = D2(t: newTrk(1))
+  b = D2(t: newTrk(2))
+  echo "t6 in ", alive
+  b = B2(n: 1)
+  echo "t6 after ", alive
+proc t7() =
+  let f: ref Exception = (ref MyErr)(msg: "x", t: newTrk(1))
+  echo "t7 in ", alive, " ", f.msg
+proc t8() =
+  var r: ref RootObj = D2(t: newTrk(8))
+  block:
+    r = D2(t: newTrk(9))
+  echo "t8 in ", alive
+t1()
+echo "t1 ", alive
+t2()
+echo "t2 ", alive
+t3()
+echo "t3 ", alive
+t4()
+echo "t4 ", alive
+t5()
+echo "t5 ", alive
+t6()
+echo "t6 ", alive
+t7()
+echo "t7 ", alive
+t8()
+echo "t8 ", alive

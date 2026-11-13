@@ -1,0 +1,10 @@
+# A class holding just closures, the base of a class in another module: the frontend
+# calls it trivial, its hook is only ever written in the module that needs it.
+import std/syncio
+import closure_base_foreign_lib
+type S = ref object of Base
+proc main() =
+  let a = S()
+  let b = Base(a)
+  echo b != nil
+main()

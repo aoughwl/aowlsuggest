@@ -1,0 +1,21 @@
+type
+  Trk* = object
+    id*: int
+var alive* = 0
+proc `=destroy`*(t: Trk) =
+  if t.id != 0: dec alive
+proc `=wasMoved`*(t: var Trk) = t.id = 0
+proc `=dup`*(t: Trk): Trk =
+  if t.id != 0: inc alive
+  Trk(id: t.id)
+proc newTrk*(i: int): Trk =
+  inc alive
+  Trk(id: i)
+type
+  Base* = ref object of RootObj
+    cb*: proc(self: Base): int {.closure.}
+proc keep*(k: int): proc(self: Base): int {.closure.} =
+  let t = newTrk(k)
+  result = proc(self: Base): int {.closure.} = t.id
+proc mkBase*(k: int): Base =
+  Base(cb: keep(k))

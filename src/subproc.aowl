@@ -1,0 +1,74 @@
+## subproc.aowl -- run a child process and capture its stdout whole.
+##
+## The child's stdout is redirected to a temp file that is then read in one go:
+## aowlparser prints its whole diagnostic array on ONE line, and a line-buffered
+## pipe capture can split such a line. On Windows `execCmd` is a bare
+## CreateProcessW (no shell), so redirection goes through `cmd /d /s /c "..."`,
+## whose `/s` rule strips exactly the outer quote pair.
+
+import std/[osproc, syncio, paths, dirs, strutils, appdirs, monotimes]
+
+type
+  CaptureResult* = object
+    output*: string    ## the captured stdout
+    exitCode*: int     ## the child's exit code, or -1 if it could not be run
+    ok*: bool          ## false only when the process could not run / be read
+
+var gTmpCounter = 0
+
+proc tempPath*(tag, ext: string): string =
+  ## A temp path made of the temp dir, a monotonic tick and a counter, so
+  ## repeated calls within one run never collide.
+  inc gTmpCounter
+  var ticks = 0'i64
+  try:
+    ticks = getMonoTime().ticks
+  except:
+    ticks = 0
+  var td = "/tmp"
+  try:
+    td = $getTempDir()
+  except:
+    td = "/tmp"
+  while td.len > 1 and (td[td.len - 1] == '/' or td[td.len - 1] == '\\'):
+    td = substr(td, 0, td.len - 2)
+  result = td & "/aowlsuggest_" & tag & "_" & $ticks & "_" & $gTmpCounter & ext
+
+proc shellQuote*(s: string): string =
+  ## Quote one argument for the platform shell (cmd.exe on Windows, sh elsewhere).
+  when defined(windows):
+    return "\"" & s.replace("\"", "\"\"") & "\""
+  result = "'"
+  for i in 0 ..< s.len:
+    if s[i] == '\'':
+      result.add "'\\''"
+    else:
+      result.add s[i]
+  result.add "'"
+
+proc shellExec(command: string): int {.raises.} =
+  when defined(windows):
+    result = execCmd("cmd /d /s /c \"" & command & "\"")
+  else:
+    result = execCmd(command)
+
+const DevNull = when defined(windows): "nul" else: "/dev/null"
+
+proc captureShell*(command: string): CaptureResult =
+  ## Run `command` through the shell, stdout to a temp file read whole. stderr is
+  ## discarded. `command` must not include its own redirect.
+  let outPath = tempPath("out", ".txt")
+  let full = command & " > " & shellQuote(outPath) & " 2>" & DevNull
+  var code = -1
+  try:
+    code = shellExec(full)
+  except:
+    return CaptureResult(output: "", exitCode: -1, ok: false)
+  var outp = ""
+  try:
+    outp = readFile(outPath)
+  except:
+    return CaptureResult(output: "", exitCode: code, ok: false)
+  try: removeFile(path(outPath))
+  except: discard
+  result = CaptureResult(output: outp, exitCode: code, ok: true)

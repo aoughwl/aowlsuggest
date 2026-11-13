@@ -1,0 +1,18 @@
+## binstdio.aowl -- put the standard streams in binary mode on Windows.
+##
+## The C runtime opens stdin/stdout in text mode there: reading folds CRLF into
+## LF and writing turns every LF into CRLF. aowlsuggest must round-trip source
+## bytes exactly (a `fix --stdin` result is piped straight back into an editor
+## buffer, and the line-ending style fix needs to SEE the CR) and the LSP
+## framing needs exact header bytes, so both streams are switched to binary.
+
+import std/syncio
+
+when defined(windows):
+  proc cSetMode(fd: cint; mode: cint): cint {.importc: "_setmode", header: "<io.h>".}
+  proc cFileNo(f: File): cint {.importc: "_fileno", header: "<stdio.h>".}
+
+proc setStdioBinary*() =
+  when defined(windows):
+    discard cSetMode(cFileNo(stdin), cint(0x8000))    # _O_BINARY
+    discard cSetMode(cFileNo(stdout), cint(0x8000))

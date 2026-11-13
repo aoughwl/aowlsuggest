@@ -1,8 +1,8 @@
-## lsp.nim — convert aowlparser diagnostics into editor-facing JSON: LSP
+## lsp.aowl — convert aowlparser diagnostics into editor-facing JSON: LSP
 ## `Diagnostic` objects (0-based ranges, related information) and `CodeAction`
 ## quick-fixes carrying a `WorkspaceEdit`. This is the "editor surface" layer;
 ## it derives everything from the diagnostics + the fix planner and never looks
-## at Nim syntax itself.
+## at aowlmony syntax itself.
 
 import std/[os, strutils]
 import contract, textedit, fixes, jsonout
@@ -16,12 +16,24 @@ proc lspSeverity(s: Severity): int =
 
 proc toFileUri*(pathArg: string): string =
   ## A `file://` URI for `pathArg`, resolved against the cwd when relative.
-  var p = pathArg
-  if p.len == 0 or p[0] != '/':
+  var p = ""
+  for i in 0 ..< pathArg.len:
+    if pathArg[i] == '\\': p.add '/' else: p.add pathArg[i]
+  let rooted = p.len > 0 and (p[0] == '/' or
+    (p.len >= 2 and p[1] == ':' and ((p[0] >= 'a' and p[0] <= 'z') or
+                                      (p[0] >= 'A' and p[0] <= 'Z'))))
+  if not rooted:
+    var cwd = ""
     try:
-      p = getCurrentDir() & "/" & pathArg
+      cwd = $getCurrentDir()
     except:
-      p = pathArg
+      cwd = ""
+    var c = ""
+    for i in 0 ..< cwd.len:
+      if cwd[i] == '\\': c.add '/' else: c.add cwd[i]
+    p = c & "/" & p
+  # a drive path (`C:/x`) needs the extra slash: file:///C:/x
+  if p.len >= 2 and p[1] == ':': p = "/" & p
   result = "file://" & p
 
 proc offsetToLineCol(starts: seq[int]; off: int): (int, int) =

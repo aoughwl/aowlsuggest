@@ -1,0 +1,25 @@
+import std/syncio
+# `continue` in a `while` inside the body of a `for`, over an iterator or a seq.
+iterator two(): int =
+  yield 1
+  yield 2
+proc viaIterator() =
+  var n = 0
+  for x in two():
+    var i = 0
+    while i < 3:
+      inc i
+      if i == 2: continue
+      n += i
+  echo n
+proc viaSeq() =
+  var n = 0
+  for x in @[1, 2, 3]:
+    var i = 0
+    while i < 3:
+      inc i
+      if i == 2: continue
+      n += i
+  echo n
+viaIterator()
+viaSeq()

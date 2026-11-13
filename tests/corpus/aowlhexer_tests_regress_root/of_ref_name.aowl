@@ -1,0 +1,17 @@
+## `y of D` can name the ref type where the object type has the class data: it hashed the ref's name
+## and was false for every object. `echo y of D` spells it the other way and was true all along.
+import std/syncio
+
+type
+  B = ref object of RootObj
+    x: int
+  D = ref object of B
+    v: int
+  E = ref object of B
+
+let x: B = D(x: 1, v: 5)
+let y = B(D(x: 1, v: 5))
+if x of D: echo "x"
+if y of D: echo "y"
+if y of E: echo "not this"
+echo y of D

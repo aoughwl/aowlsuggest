@@ -1,0 +1,3 @@
+import closure_fields_lib
+
+proc callLib*(l: Lib; k: int): int = l.addTo(k) + l.other()

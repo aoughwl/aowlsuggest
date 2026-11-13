@@ -1,0 +1,23 @@
+## A closure capturing `result`: its declaration has no value to assign to the environment slot,
+## and that case left the walk one token short.
+import std/syncio
+
+type Foo = ref object
+  a: proc () {.closure.}
+  b: proc () {.closure.}
+
+proc mk(): Foo =
+  result = Foo()
+  result.b = proc () {.closure.} =
+    result.a()
+
+proc counted(): int =
+  result = 1
+  let f = proc () {.closure.} =
+    result = result + 41
+  f()
+
+let f = mk()
+f.a = proc () {.closure.} = echo "a ran"
+f.b()
+echo counted()

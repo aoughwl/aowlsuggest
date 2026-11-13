@@ -1,0 +1,14 @@
+## A call of a closure held in a variable, with an argument that needs a temp: the branch of the
+## nil check got several statements where one is allowed, and lowering stopped.
+import std/syncio
+
+type
+  P = ref object of RootObj
+    n: int
+
+var c: proc (p: P) {.closure.}
+var k = 1
+c = proc (p: P) {.closure.} =
+  k = k + p.n
+c(P(n: 1))
+echo k

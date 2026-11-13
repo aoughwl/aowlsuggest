@@ -1,0 +1,133 @@
+# Closures over the locals of module-level code. They write: reading one is refused
+# by the frontend for now ("cannot prove ... has been initialized").
+import std/syncio
+type V = ref object
+  f: proc() {.closure.}
+# block, the report's shape
+block b:
+  var seen = false
+  let v = V(f: proc() {.closure.} = seen = true)
+  v.f()
+  echo "block ", seen
+# anonymous block
+block:
+  var n = 1
+  let f = proc() {.closure.} = n = 2
+  f()
+  f()
+  echo "anon ", n
+# for: named nested proc and the loop variable
+for i in 0 .. 1:
+  var x = i
+  proc f() {.closure.} = x = i + 10
+  f()
+  echo "for ", x
+# while with a counter that is a global
+var k = 0
+while k < 2:
+  inc k
+  var x = k
+  let f = proc() {.closure.} = x = k * 3
+  f()
+  echo "while ", x
+# if / elif / else
+if k == 2:
+  var x = 1
+  let f = proc() {.closure.} = x = 7
+  f()
+  echo "if ", x
+if k == 99:
+  discard
+elif k == 2:
+  var y = 1
+  let f = proc() {.closure.} = y = 8
+  f()
+  echo "elif ", y
+else:
+  discard
+# case
+case k
+of 2:
+  var z = 1
+  let f = proc() {.closure.} = z = 9
+  f()
+  echo "case ", z
+else:
+  discard
+# try / except / finally
+try:
+  var t = 1
+  let f = proc() {.closure.} = t = 11
+  f()
+  echo "try ", t
+finally:
+  var u = 1
+  let f = proc() {.closure.} = u = 12
+  f()
+  echo "finally ", u
+# nested scopes, two levels of closures
+block:
+  var a = 1
+  block:
+    var b = 2
+    let f = proc() {.closure.} =
+      a = 3
+      let g = proc() {.closure.} = b = 100
+      g()
+    f()
+    echo "nested ", a, " ", b
+# global next to a captured local, both written
+var g1 = 0
+block:
+  var l = 5
+  let f = proc() {.closure.} =
+    g1 = 6
+    l = 7
+  f()
+  echo "global ", g1, " ", l
+echo "global after ", g1
+# break out of a block and a loop that hold a closure
+block outer:
+  for i in 0 .. 3:
+    var w = i
+    let f = proc() {.closure.} = w = i * 2
+    f()
+    if w == 2:
+      echo "break ", w
+      break outer
+# when: its declarations stay globals
+when true:
+  var wg = 1
+  block:
+    var wl = 2
+    let f = proc() {.closure.} =
+      wg = 3
+      wl = 4
+    f()
+    echo "when ", wg, " ", wl
+echo "when after ", wg
+# a global initialized by a block with a closure in it
+let gi = block:
+  var s = 40
+  let f = proc() {.closure.} = s = 42
+  f()
+  s
+echo "ginit ", gi
+# a closure escaping a block into a global
+var keep: proc() {.closure.} = proc() {.closure.} = discard
+block:
+  var cnt = 0
+  keep = proc() {.closure.} =
+    cnt = 1
+    echo "kept"
+keep()
+keep()
+# inline iterator at module level
+iterator two(): int =
+  yield 1
+  yield 2
+for v in two():
+  var q = v
+  let f = proc() {.closure.} = q = 5
+  f()
+  echo "iter ", q

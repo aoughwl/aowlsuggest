@@ -1,0 +1,16 @@
+import std/syncio
+# Binding a derived ref to its base keeps it: the derived one is written afterwards.
+type
+  B = ref object of RootObj
+    k: int
+  D = ref object of B
+    x: int
+proc use(b: B) = discard
+proc main() =
+  let m = D(x: 1)
+  let b: B = m
+  m.x = 2
+  m.k = 3
+  use(b)
+  echo m.x, " ", m.k, " ", b.k
+main()

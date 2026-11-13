@@ -1,0 +1,17 @@
+# A passive proc that awaits another passive proc twice: each suspension point
+# needs its own state proc. With the label counter starting at 0 (a field default
+# the aowlmony-built hexer lost), the first label reused the entry state's
+# number, two `.s0` procs were emitted and the C compile failed.
+import std/syncio
+
+proc inner(x: int): int {.passive.} =
+  result = x + 1
+
+proc outer() {.passive.} =
+  let a = 10
+  let v = inner(a)
+  echo "got ", v, " a=", a
+  let w = inner(v)
+  echo "then ", w
+
+outer()

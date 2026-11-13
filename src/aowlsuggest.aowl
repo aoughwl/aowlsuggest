@@ -1,8 +1,8 @@
 ## aowlsuggest — the diagnostics / suggestion + editor-integration layer on top
 ## of aowlparser.
 ##
-## aowlsuggest CONSUMES aowlparser's diagnostics; it never lexes or parses Nim
-## itself (see `contract.nim`). This tool turns those structured diagnostics into
+## aowlsuggest CONSUMES aowlparser's diagnostics; it never lexes or parses aowlmony
+## itself (see `contract.aowl`). This tool turns those structured diagnostics into
 ## verifiable quick-fixes, batch/CI linting (text, JSON, SARIF), editor (LSP)
 ## payloads and a full LSP server, code explanations, and inline suppression.
 ##
@@ -15,13 +15,13 @@
 ##   aowlsuggest explain [code]                               explain a diagnostic code
 ##   aowlsuggest version
 ##
-## `<paths...>` may be files or directories (walked for *.nim). Common flags:
+## `<paths...>` may be files or directories (walked for *.aowl). Common flags:
 ##   --parser:PATH  --exclude:GLOB  --stdin  --filename:NAME  --stats  --color
 ##   --no-suppress  (ignore inline `# aowlsuggest:ignore` markers)
 
 import std/[syncio, cmdline, strutils]
 import contract, textedit, fixes, lsp, jsonout, walk, sarif, explain, suppress
-import lspserver, projconfig
+import lspserver, projconfig, binstdio
 
 const aowlsuggestVersion = "0.3.0"
 
@@ -297,7 +297,7 @@ proc cmdFix(opts: Options; paths: seq[string]): int =
     return fixOne(opts, "", true, opts.filename)
   let files = collectFiles(paths, opts.excludes)
   if files.len == 0:
-    write stderr, "aowlsuggest: no .nim files in the given paths\n"
+    write stderr, "aowlsuggest: no .aowl files in the given paths\n"
     return 2
   var worstRc = 0
   var unclean = 0
@@ -607,6 +607,7 @@ proc applyConfig(opts: var Options; c: ProjectConfig) =
     write stderr, "aowlsuggest: " & c.path & ": " & w & "\n"
 
 proc main(): int =
+  setStdioBinary()
   var opts = Options(parserBin: defaultParserBin(), excludes: @[],
                      suppress: true, format: "text", stats: false,
                      doWrite: false, useStdin: false, filename: "stdin",
