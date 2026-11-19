@@ -3,11 +3,11 @@
 # is produced (the compiler exits 0 even then; the exe lands in nimcache/<hash>/).
 #
 # Overrides: AOWLMONY_ROOT (toolchain root; default ~/dev/toolchain/aowlmony/root),
-#            AOWLJSONREF  (jsonref src dir; default ~/dev/jsonref/src).
+#            AOWLJSONREF  (jsonref src dir; default ~/dev/std/jsonref/src).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AOWLMONY_ROOT="${AOWLMONY_ROOT:-$HOME/dev/toolchain/aowlmony/root}"
-JSONREF="${AOWLJSONREF:-$HOME/dev/jsonref/src}"
+JSONREF="${AOWLJSONREF:-$HOME/dev/std/jsonref/src}"
 COMPILER="$AOWLMONY_ROOT/bin/aowlmony.exe"
 [[ -x "$COMPILER" ]] || { echo "build.sh: no compiler at $COMPILER" >&2; exit 1; }
 if command -v cygpath >/dev/null 2>&1; then

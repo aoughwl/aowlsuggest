@@ -296,7 +296,7 @@ bash build.sh            # -> bin/aowlsuggest.exe
 ```
 
 aowlmony builds it from `src/aowlsuggest.aowl` with one external library,
-[jsonref](https://github.com/aoughwl/jsonref) (`--path:~/dev/jsonref/src`;
+[jsonref](https://github.com/aoughwl/std/tree/main/jsonref) (`--path:~/dev/std/jsonref/src`;
 override with `AOWLJSONREF`). The toolchain root defaults to
 `~/dev/toolchain/aowlmony/root` (override with `AOWLMONY_ROOT`). The compiler
 exits 0 even when it produced nothing, so `build.sh` treats "no exe in
